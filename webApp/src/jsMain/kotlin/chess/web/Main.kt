@@ -34,6 +34,7 @@ var selectedSquare: Square? = null
 var legalMovesForSelected: List<Move> = emptyList()
 var flipped = false
 var autoPlayJob: Job? = null
+var pendingPromotionMove: ((PieceType) -> Move)? = null
 
 // Config state
 var gameMode = GameMode.HUMAN_VS_ENGINE
@@ -254,8 +255,13 @@ fun renderBoard() {
 fun renderMoveHistory() {
     val s = session ?: return
     val history = s.getGameState().moveHistory
-    val el = document.getElementById("move-history")!!
+    val el = document.getElementById("move-history") as HTMLElement
     el.innerHTML = ""
+    if (history.isEmpty()) {
+        el.className = ""
+        return
+    }
+    el.className = "has-moves"
     for (i in history.indices step 2) {
         val moveNum = i / 2 + 1
         val white = history[i].toAlgebraic()
@@ -275,29 +281,22 @@ fun onSquareClick(square: Square) {
     val piece = board[square]
 
     if (selectedSquare != null) {
-        // Try to make a move
-        val move = legalMovesForSelected.find { it.to == square }
-        if (move != null) {
-            scope.launch {
-                autoPlayJob?.cancel()
-                s.makePlayerMove(move)
-                selectedSquare = null
-                legalMovesForSelected = emptyList()
-                renderBoard()
-                renderGhostControls()
-                renderThinkingPanel()
-
-                // Engine responds
-                if (s.config.mode == GameMode.HUMAN_VS_ENGINE &&
-                    s.getGameState().status == GameStatus.IN_PROGRESS &&
-                    !s.isPlayerTurn()
-                ) {
-                    delay(300)
-                    s.makeEngineMove()
-                    renderBoard()
-                    renderGhostControls()
-                }
+        // Check for promotion moves to this square
+        val promoMoves = legalMovesForSelected.filter { it.to == square && it.promotion != null }
+        if (promoMoves.isNotEmpty()) {
+            // Show promotion picker
+            val fromSq = selectedSquare!!
+            pendingPromotionMove = { pieceType ->
+                promoMoves.first { it.promotion == pieceType }
             }
+            showPromotionModal(board.activeColor)
+            return
+        }
+
+        // Try to make a normal move
+        val move = legalMovesForSelected.find { it.to == square && it.promotion == null }
+        if (move != null) {
+            executeMove(s, move)
             return
         }
     }
@@ -311,6 +310,46 @@ fun onSquareClick(square: Square) {
         legalMovesForSelected = emptyList()
     }
     renderBoard()
+}
+
+fun executeMove(s: GameSession, move: Move) {
+    scope.launch {
+        autoPlayJob?.cancel()
+        s.makePlayerMove(move)
+        selectedSquare = null
+        legalMovesForSelected = emptyList()
+        renderBoard()
+        renderGhostControls()
+        renderThinkingPanel()
+
+        // Engine responds
+        if (s.config.mode == GameMode.HUMAN_VS_ENGINE &&
+            s.getGameState().status == GameStatus.IN_PROGRESS &&
+            !s.isPlayerTurn()
+        ) {
+            delay(300)
+            s.makeEngineMove()
+            renderBoard()
+            renderGhostControls()
+        }
+    }
+}
+
+fun showPromotionModal(color: PieceColor) {
+    val modal = document.getElementById("promotion-modal") as HTMLElement
+    modal.className = "active"
+    // Set piece chars on buttons
+    val pieces = listOf("queen" to PieceType.QUEEN, "rook" to PieceType.ROOK,
+        "bishop" to PieceType.BISHOP, "knight" to PieceType.KNIGHT)
+    for ((name, type) in pieces) {
+        val btn = document.querySelector("[data-piece=\"$name\"]") as HTMLElement
+        btn.textContent = pieceChar(type, color)
+    }
+}
+
+fun hidePromotionModal() {
+    val modal = document.getElementById("promotion-modal") as HTMLElement
+    modal.className = ""
 }
 
 fun renderGhostControls() {
@@ -358,11 +397,11 @@ fun renderGhostControls() {
     (document.getElementById("ghost-accept-btn") as HTMLButtonElement).disabled = ghost.currentStepIndex < 0
 
     val playPauseBtn = document.getElementById("ghost-play-pause-btn") as HTMLButtonElement
-    playPauseBtn.textContent = if (ghost.status == GhostPreviewStatus.PLAYING) "⏸" else "▶"
+    playPauseBtn.textContent = if (ghost.status == GhostPreviewStatus.PLAYING) "Pause" else "Play"
     playPauseBtn.disabled = !ghost.canStepForward && ghost.status != GhostPreviewStatus.PLAYING
 
     val toggleModeBtn = document.getElementById("ghost-toggle-mode-btn")!!
-    toggleModeBtn.textContent = if (ghost.mode == GhostPreviewMode.AUTO_PLAY) "👣" else "🎬"
+    toggleModeBtn.textContent = if (ghost.mode == GhostPreviewMode.AUTO_PLAY) "Step" else "Auto"
 
     // Start auto-play if in PLAYING status
     if (ghost.status == GhostPreviewStatus.PLAYING && autoPlayJob?.isActive != true) {
@@ -482,4 +521,22 @@ fun setupGhostButtons() {
         renderGhostControls()
         renderThinkingPanel()
     })
+
+    // Promotion buttons
+    for (pieceName in listOf("queen", "rook", "bishop", "knight")) {
+        document.querySelector("[data-piece=\"$pieceName\"]")!!.addEventListener("click", {
+            val s = session ?: return@addEventListener
+            val pieceType = when (pieceName) {
+                "queen" -> PieceType.QUEEN
+                "rook" -> PieceType.ROOK
+                "bishop" -> PieceType.BISHOP
+                "knight" -> PieceType.KNIGHT
+                else -> return@addEventListener
+            }
+            val move = pendingPromotionMove?.invoke(pieceType) ?: return@addEventListener
+            pendingPromotionMove = null
+            hidePromotionModal()
+            executeMove(s, move)
+        })
+    }
 }

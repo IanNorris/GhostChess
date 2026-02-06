@@ -195,14 +195,15 @@ test.describe('Chess Gameplay', () => {
       await startHvH(page);
       const history = page.getByTestId('move-history');
 
-      // No moves yet
-      await expect(history).toBeVisible();
+      // No moves yet — history panel hidden
+      await expect(history).not.toBeVisible();
 
       // Make a move
       await makeMove(page, 'e2', 'e4');
       await page.getByTestId('ghost-dismiss-btn').click({ timeout: 10000 });
 
-      // History should contain the move
+      // History should now be visible and contain the move
+      await expect(history).toBeVisible({ timeout: 5000 });
       await expect(history).toContainText('e2e4');
     });
   });
@@ -235,6 +236,26 @@ test.describe('Chess Gameplay', () => {
       await expect(page.getByTestId('rank-label-8')).toBeVisible();
       await expect(page.getByTestId('file-label-a')).toBeVisible();
       await expect(page.getByTestId('file-label-h')).toBeVisible();
+    });
+
+    test('board squares are uniform size', async ({ page }) => {
+      await startHvH(page);
+      const a1 = await page.getByTestId('square-a1').boundingBox();
+      const e4 = await page.getByTestId('square-e4').boundingBox();
+      const h8 = await page.getByTestId('square-h8').boundingBox();
+      // All squares should have same width and height (within 2px tolerance)
+      expect(Math.abs(a1!.width - e4!.width)).toBeLessThan(2);
+      expect(Math.abs(a1!.height - e4!.height)).toBeLessThan(2);
+      expect(Math.abs(a1!.width - h8!.width)).toBeLessThan(2);
+      // Each square should be roughly square
+      expect(Math.abs(a1!.width - a1!.height)).toBeLessThan(2);
+    });
+  });
+
+  test.describe('Promotion', () => {
+    test('promotion modal is hidden initially', async ({ page }) => {
+      await startHvH(page);
+      await expect(page.getByTestId('promotion-modal')).not.toBeVisible();
     });
   });
 });

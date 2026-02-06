@@ -41,38 +41,52 @@
         .top-bar button { background: none; border: none; color: #E0E0E0; cursor: pointer; font-size: 14px; }
 
         /* Board */
-        #chess-board { display: grid; grid-template-columns: repeat(8, 1fr); width: 100%; aspect-ratio: 1; }
-        .square {
-            display: flex; align-items: center; justify-content: center;
-            font-size: min(5vw, 40px); cursor: pointer; position: relative;
-            user-select: none;
-        }
-        .square.light { background: #F0D9B5; }
-        .square.dark { background: #B58863; }
-        .square.selected { background: #829769 !important; }
-        .square.check { background: rgba(255,0,0,0.5) !important; }
-        .square.legal-target::after {
-            content: ''; position: absolute; width: 30%; height: 30%;
-            background: rgba(0,180,0,0.4); border-radius: 50%;
-        }
-        .legal-dot {
-            position: absolute; width: 30%; height: 30%;
-            background: rgba(0,180,0,0.4); border-radius: 50%;
-        }
-        .square.legal-capture { box-shadow: inset 0 0 0 3px rgba(0,180,0,0.5); }
-        .square.ghost-highlight { background: rgba(0,170,255,0.3) !important; }
-        .ghost-piece {
-            position: absolute; opacity: 0.4; font-size: min(5vw, 40px); pointer-events: none;
-        }
-
-        .file-labels, .rank-labels { display: contents; }
         #board-wrapper {
             display: grid;
             grid-template-columns: 20px 1fr;
             grid-template-rows: 1fr 20px;
             gap: 0;
         }
-        .rank-col { display: flex; flex-direction: column; justify-content: space-around; font-size: 11px; color: #aaa; }
+        #chess-board {
+            display: grid;
+            grid-template-columns: repeat(8, minmax(0, 1fr));
+            grid-template-rows: repeat(8, minmax(0, 1fr));
+            width: 100%;
+            aspect-ratio: 1;
+        }
+        .square {
+            position: relative;
+            cursor: pointer;
+            user-select: none;
+            overflow: hidden;
+            min-width: 0; min-height: 0;
+        }
+        .square span {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: min(5vw, 40px);
+            line-height: 1;
+            pointer-events: none;
+        }
+        .square.light { background: #F0D9B5; }
+        .square.dark { background: #B58863; }
+        .square.selected { background: #7BAE3E !important; }
+        .square.check { background: rgba(255,0,0,0.5) !important; }
+        .legal-dot {
+            position: absolute; width: 30%; height: 30%;
+            top: 35%; left: 35%;
+            background: rgba(0,180,0,0.5); border-radius: 50%;
+        }
+        .square.legal-capture { box-shadow: inset 0 0 0 3px rgba(0,180,0,0.6); }
+        .square.ghost-highlight { background: rgba(0,170,255,0.3) !important; }
+        .ghost-piece {
+            position: absolute; opacity: 0.4; pointer-events: none;
+            top: 50%; left: 50%; transform: translate(-50%, -50%);
+        }
+        .ghost-piece span { font-size: min(5vw, 40px); line-height: 1; }
+
+        .rank-col { display: flex; flex-direction: column; justify-content: space-around; font-size: 11px; color: #aaa; text-align: center; }
         .file-row { display: flex; justify-content: space-around; font-size: 11px; color: #aaa; margin-left: 20px; }
 
         /* Ghost controls */
@@ -81,22 +95,27 @@
             margin-top: 12px; text-align: center;
         }
         #ghost-controls.active { display: block; }
-        .ghost-btn-row { display: flex; gap: 8px; justify-content: center; margin: 8px 0; }
+        .ghost-btn-row { display: flex; gap: 6px; justify-content: center; margin: 8px 0; flex-wrap: wrap; }
         .ghost-btn-row button {
-            padding: 6px 12px; border: none; border-radius: 4px;
-            background: #555; color: #E0E0E0; cursor: pointer; font-size: 16px;
+            padding: 8px 14px; border: none; border-radius: 6px;
+            background: #555; color: #E0E0E0; cursor: pointer; font-size: 13px;
+            min-width: 44px; min-height: 36px;
+            display: flex; align-items: center; justify-content: center;
         }
+        .ghost-btn-row button:hover:not(:disabled) { background: #666; }
         .ghost-btn-row button:disabled { opacity: 0.3; cursor: default; }
-        .action-btn-row { display: flex; gap: 12px; justify-content: center; margin-top: 8px; }
+        .action-btn-row { display: flex; gap: 12px; justify-content: center; margin-top: 10px; }
         #ghost-accept-btn {
-            padding: 8px 20px; background: #6BAF6B; color: #fff; border: none;
+            padding: 10px 24px; background: #6BAF6B; color: #fff; border: none;
             border-radius: 6px; cursor: pointer; font-size: 14px;
         }
-        #ghost-accept-btn:disabled { opacity: 0.4; }
+        #ghost-accept-btn:disabled { opacity: 0.4; cursor: default; }
+        #ghost-accept-btn:hover:not(:disabled) { background: #5a9e5a; }
         #ghost-dismiss-btn {
-            padding: 8px 20px; background: none; color: #E0E0E0; border: 1px solid #666;
+            padding: 10px 24px; background: none; color: #E0E0E0; border: 1px solid #666;
             border-radius: 6px; cursor: pointer; font-size: 14px;
         }
+        #ghost-dismiss-btn:hover { border-color: #999; }
 
         /* Engine thinking */
         #engine-thinking-panel {
@@ -109,10 +128,30 @@
 
         /* Move history */
         #move-history {
-            margin-top: 12px; background: #3D3D3D; border-radius: 8px; padding: 8px 12px;
+            display: none; margin-top: 12px; background: #3D3D3D; border-radius: 8px; padding: 8px 12px;
             font-size: 13px; max-height: 120px; overflow-y: auto;
         }
+        #move-history.has-moves { display: block; }
         #move-history span { margin-right: 8px; }
+
+        /* Promotion modal */
+        #promotion-modal {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6); z-index: 100;
+            justify-content: center; align-items: center;
+        }
+        #promotion-modal.active { display: flex; }
+        .promotion-dialog {
+            background: #3D3D3D; border-radius: 12px; padding: 20px; text-align: center;
+        }
+        .promotion-dialog h3 { margin-bottom: 12px; font-size: 16px; }
+        .promotion-choices { display: flex; gap: 12px; justify-content: center; }
+        .promotion-choices button {
+            width: 60px; height: 60px; font-size: 36px; border: 2px solid #666;
+            border-radius: 8px; background: #555; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .promotion-choices button:hover { border-color: #6BAF6B; background: #4a4a4a; }
     </style>
 </head>
 <body>
@@ -171,11 +210,11 @@
             <div id="ghost-move-info" data-testid="ghost-move-info" style="color:#FFB74D; font-size:12px;"></div>
             <div id="ghost-eval" data-testid="ghost-eval" style="font-size:12px;"></div>
             <div class="ghost-btn-row">
-                <button id="ghost-reset-btn" data-testid="ghost-reset-btn" title="Reset">⏮</button>
-                <button id="ghost-step-back-btn" data-testid="ghost-step-back-btn" title="Step back">⏪</button>
-                <button id="ghost-play-pause-btn" data-testid="ghost-play-pause-btn" title="Play/Pause">▶</button>
-                <button id="ghost-step-forward-btn" data-testid="ghost-step-forward-btn" title="Step forward">⏩</button>
-                <button id="ghost-toggle-mode-btn" data-testid="ghost-toggle-mode-btn" title="Toggle mode">👣</button>
+                <button id="ghost-reset-btn" data-testid="ghost-reset-btn" title="Reset">|&lt;</button>
+                <button id="ghost-step-back-btn" data-testid="ghost-step-back-btn" title="Step back">&lt;&lt;</button>
+                <button id="ghost-play-pause-btn" data-testid="ghost-play-pause-btn" title="Play/Pause">Play</button>
+                <button id="ghost-step-forward-btn" data-testid="ghost-step-forward-btn" title="Step forward">&gt;&gt;</button>
+                <button id="ghost-toggle-mode-btn" data-testid="ghost-toggle-mode-btn" title="Toggle mode">Auto</button>
             </div>
             <div class="action-btn-row">
                 <button id="ghost-accept-btn" data-testid="ghost-accept-btn" disabled>Accept</button>
@@ -192,6 +231,19 @@
         </div>
 
         <div id="move-history" data-testid="move-history"></div>
+    </div>
+
+    <!-- Promotion Modal -->
+    <div id="promotion-modal" data-testid="promotion-modal">
+        <div class="promotion-dialog">
+            <h3>Promote pawn to:</h3>
+            <div class="promotion-choices">
+                <button data-testid="promote-queen" data-piece="queen"></button>
+                <button data-testid="promote-rook" data-piece="rook"></button>
+                <button data-testid="promote-bishop" data-piece="bishop"></button>
+                <button data-testid="promote-knight" data-piece="knight"></button>
+            </div>
+        </div>
     </div>
 </div>
 <script src="chess-web.js"></script>
