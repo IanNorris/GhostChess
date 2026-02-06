@@ -57,17 +57,16 @@ fun ChessBoard(
 
                     // Ghost state
                     val ghostBoard = ghostState.boardAtStep
-                    val ghostPiece = if (ghostState.isActive && ghostBoard != null &&
+                    val ghostActive = ghostState.isActive && ghostBoard != null &&
                         ghostState.currentStepIndex >= 0
-                    ) {
-                        ghostBoard[square]
-                    } else null
-                    val isGhostSquare = ghostPiece != null && ghostPiece != piece
+                    val ghostPiece = if (ghostActive) ghostBoard!![square] else null
+                    val isGhostDiff = ghostActive && ghostPiece != piece
+                    val displayPiece = if (ghostActive) ghostPiece else piece
 
                     val bgColor = when {
                         isSelected -> ChessColors.SelectedSquare
                         isCheck -> ChessColors.CheckHighlight
-                        isGhostSquare -> if (isLightSquare) ChessColors.GhostMoveTo else ChessColors.GhostMoveFrom
+                        isGhostDiff -> if (isLightSquare) ChessColors.GhostMoveTo else ChessColors.GhostMoveFrom
                         isLightSquare -> ChessColors.LightSquare
                         else -> ChessColors.DarkSquare
                     }
@@ -85,24 +84,17 @@ fun ChessBoard(
                             .testTag("square-${square.toAlgebraic()}"),
                         contentAlignment = Alignment.Center
                     ) {
-                        // Show actual piece
-                        if (piece != null) {
+                        // Show piece: ghost board piece during ghost mode, real piece otherwise
+                        if (displayPiece != null) {
                             Text(
-                                text = PieceUnicode.get(piece.type, piece.color),
+                                text = PieceUnicode.get(displayPiece.type, displayPiece.color),
                                 fontSize = 32.sp,
                                 textAlign = TextAlign.Center,
-                                modifier = Modifier.testTag("piece-${square.toAlgebraic()}")
-                            )
-                        }
-
-                        // Show ghost piece overlay
-                        if (isGhostSquare) {
-                            Text(
-                                text = PieceUnicode.get(ghostPiece.type, ghostPiece.color),
-                                fontSize = 32.sp,
-                                textAlign = TextAlign.Center,
-                                color = ChessColors.GhostPiece,
-                                modifier = Modifier.testTag("ghost-piece-${square.toAlgebraic()}")
+                                color = if (ghostActive && isGhostDiff) ChessColors.GhostPiece else Color.Unspecified,
+                                modifier = Modifier.testTag(
+                                    if (ghostActive && isGhostDiff) "ghost-piece-${square.toAlgebraic()}"
+                                    else "piece-${square.toAlgebraic()}"
+                                )
                             )
                         }
 

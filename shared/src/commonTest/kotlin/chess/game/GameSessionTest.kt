@@ -81,6 +81,7 @@ class GameSessionTest {
     fun ghostPreviewTriggeredAfterMove() = runTest {
         val session = createSession()
         session.makePlayerMove(Move(Square(4, 1), Square(4, 3)))
+        session.requestGhostPreview()
         val ghostState = session.getGhostState()
         assertTrue(ghostState.isActive, "Ghost should be active after move")
     }
@@ -89,6 +90,7 @@ class GameSessionTest {
     fun ghostStepThroughWorks() = runTest {
         val session = createSession()
         session.makePlayerMove(Move(Square(4, 1), Square(4, 3)))
+        session.requestGhostPreview()
 
         val s1 = session.ghostStepForward()
         assertEquals(0, s1.currentStepIndex)
@@ -101,6 +103,7 @@ class GameSessionTest {
     fun ghostResetWorks() = runTest {
         val session = createSession()
         session.makePlayerMove(Move(Square(4, 1), Square(4, 3)))
+        session.requestGhostPreview()
         session.ghostStepForward()
         session.ghostStepForward()
         val state = session.ghostReset()
@@ -111,6 +114,7 @@ class GameSessionTest {
     fun ghostDismissReturnsToIdle() = runTest {
         val session = createSession()
         session.makePlayerMove(Move(Square(4, 1), Square(4, 3)))
+        session.requestGhostPreview()
         val state = session.dismissGhost()
         assertEquals(GhostPreviewStatus.IDLE, state.status)
     }
@@ -119,6 +123,7 @@ class GameSessionTest {
     fun ghostAcceptAppliesMoves() = runTest {
         val session = createSession(mode = GameMode.HUMAN_VS_HUMAN)
         session.makePlayerMove(Move(Square(4, 1), Square(4, 3)))
+        session.requestGhostPreview()
         session.ghostStepForward()
         session.ghostStepForward()
 
@@ -141,6 +146,7 @@ class GameSessionTest {
     fun undoMoveDismissesGhost() = runTest {
         val session = createSession()
         session.makePlayerMove(Move(Square(4, 1), Square(4, 3)))
+        session.requestGhostPreview()
         assertTrue(session.getGhostState().isActive)
         session.undoMove()
         assertFalse(session.getGhostState().isActive)
@@ -156,6 +162,7 @@ class GameSessionTest {
     fun ghostPauseAndResume() = runTest {
         val session = createSession()
         session.makePlayerMove(Move(Square(4, 1), Square(4, 3)))
+        session.requestGhostPreview()
         session.ghostPause()
         assertEquals(GhostPreviewStatus.PAUSED, session.getGhostState().status)
         session.ghostResume()
@@ -166,6 +173,7 @@ class GameSessionTest {
     fun ghostModeSwitching() = runTest {
         val session = createSession()
         session.makePlayerMove(Move(Square(4, 1), Square(4, 3)))
+        session.requestGhostPreview()
         session.ghostSetMode(GhostPreviewMode.STEP_THROUGH)
         assertEquals(GhostPreviewMode.STEP_THROUGH, session.getGhostState().mode)
         assertEquals(GhostPreviewStatus.PAUSED, session.getGhostState().status)
@@ -175,6 +183,7 @@ class GameSessionTest {
     fun showEngineThinkingOption() = runTest {
         val session = createSession(showThinking = true)
         session.makePlayerMove(Move(Square(4, 1), Square(4, 3)))
+        session.requestGhostPreview()
         val ghost = session.getGhostState()
         assertTrue(ghost.showThinking)
         assertNotNull(ghost.thinking)

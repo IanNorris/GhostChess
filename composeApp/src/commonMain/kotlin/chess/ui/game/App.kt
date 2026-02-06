@@ -216,7 +216,6 @@ fun GameScreen(config: GameConfig, onBack: () -> Unit) {
             if (move != null) {
                 scope.launch {
                     gameState = session.makePlayerMove(move)
-                    ghostState = session.getGhostState()
                     selectedSquare = null
                     legalMovesForSelected = emptyList()
 
@@ -225,11 +224,14 @@ fun GameScreen(config: GameConfig, onBack: () -> Unit) {
                         gameState.status == GameStatus.IN_PROGRESS &&
                         !session.isPlayerTurn()
                     ) {
-                        delay(500) // Brief pause before engine move
+                        delay(500)
                         session.makeEngineMove()
                         gameState = session.getGameState()
-                        ghostState = session.getGhostState()
                     }
+
+                    // Request ghost preview after engine has responded
+                    session.requestGhostPreview()
+                    ghostState = session.getGhostState()
                 }
                 return
             }

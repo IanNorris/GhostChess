@@ -36,12 +36,13 @@ class GameSession(
     suspend fun makePlayerMove(move: Move): GameState {
         require(isPlayerTurn()) { "Not player's turn" }
         gameState = gameState.makeMove(move)
+        return gameState
+    }
 
+    suspend fun requestGhostPreview() {
         if (gameState.status == GameStatus.IN_PROGRESS) {
             ghostManager.requestPreview(gameState.board, config.showEngineThinking)
         }
-
-        return gameState
     }
 
     suspend fun makeEngineMove(): GameState {

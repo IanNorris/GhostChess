@@ -194,12 +194,14 @@ fun renderBoard() {
                 if (piece != null) classes.add("legal-capture") else classes.add("legal-target")
             }
 
-            // Ghost highlight
+            // Ghost state
             val ghostBoard = ghostState.boardAtStep
-            val ghostPiece = if (ghostState.isActive && ghostBoard != null && ghostState.currentStepIndex >= 0) {
-                ghostBoard[square]
-            } else null
-            val isGhostDiff = ghostPiece != null && ghostPiece != piece
+            val ghostActive = ghostState.isActive && ghostBoard != null && ghostState.currentStepIndex >= 0
+            val ghostPiece = if (ghostActive) ghostBoard!![square] else null
+
+            // Determine what to display: in ghost mode, show ghost board state
+            val displayPiece = if (ghostActive) ghostPiece else piece
+            val isGhostDiff = ghostActive && ghostPiece != piece
             if (isGhostDiff) classes.add("ghost-highlight")
 
             squareEl.className = classes.joinToString(" ")
@@ -213,21 +215,17 @@ fun renderBoard() {
                 squareEl.appendChild(dot)
             }
 
-            // Piece
-            if (piece != null) {
-                val pieceSpan = document.createElement("span")
-                pieceSpan.textContent = pieceChar(piece.type, piece.color)
-                pieceSpan.setAttribute("data-testid", "piece-${square.toAlgebraic()}")
+            // Display piece (ghost or real)
+            if (displayPiece != null) {
+                val pieceSpan = document.createElement("span") as HTMLElement
+                pieceSpan.textContent = pieceChar(displayPiece.type, displayPiece.color)
+                if (ghostActive && isGhostDiff) {
+                    pieceSpan.className = "ghost-piece"
+                    pieceSpan.setAttribute("data-testid", "ghost-piece-${square.toAlgebraic()}")
+                } else {
+                    pieceSpan.setAttribute("data-testid", "piece-${square.toAlgebraic()}")
+                }
                 squareEl.appendChild(pieceSpan)
-            }
-
-            // Ghost piece overlay
-            if (isGhostDiff && ghostPiece != null) {
-                val ghostSpan = document.createElement("span") as HTMLElement
-                ghostSpan.textContent = pieceChar(ghostPiece.type, ghostPiece.color)
-                ghostSpan.className = "ghost-piece"
-                ghostSpan.setAttribute("data-testid", "ghost-piece-${square.toAlgebraic()}")
-                squareEl.appendChild(ghostSpan)
             }
 
             squareEl.addEventListener("click", { onSquareClick(square) })
@@ -318,20 +316,22 @@ fun executeMove(s: GameSession, move: Move) {
         s.makePlayerMove(move)
         selectedSquare = null
         legalMovesForSelected = emptyList()
-        renderBoard()
-        renderGhostControls()
-        renderThinkingPanel()
 
-        // Engine responds
+        // In vs-engine mode, let engine respond first, then show ghost preview
         if (s.config.mode == GameMode.HUMAN_VS_ENGINE &&
             s.getGameState().status == GameStatus.IN_PROGRESS &&
             !s.isPlayerTurn()
         ) {
+            renderBoard()
             delay(300)
             s.makeEngineMove()
-            renderBoard()
-            renderGhostControls()
         }
+
+        // Request ghost preview from current position (after engine responded if applicable)
+        s.requestGhostPreview()
+        renderBoard()
+        renderGhostControls()
+        renderThinkingPanel()
     }
 }
 
