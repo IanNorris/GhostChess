@@ -250,7 +250,7 @@ fun GameScreen(config: GameConfig, onBack: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(8.dp)
+            .padding(start = 8.dp, end = 8.dp, bottom = 8.dp, top = 36.dp)
             .testTag("game-screen"),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -342,6 +342,16 @@ fun GameScreen(config: GameConfig, onBack: () -> Unit) {
                 scope.launch {
                     gameState = session.acceptGhostLine()
                     ghostState = session.getGhostState()
+
+                    // If engine's turn after accepting, let engine respond
+                    if (config.mode == GameMode.HUMAN_VS_ENGINE &&
+                        gameState.status == GameStatus.IN_PROGRESS &&
+                        !session.isPlayerTurn()
+                    ) {
+                        delay(300)
+                        session.makeEngineMove()
+                        gameState = session.getGameState()
+                    }
                 }
             },
             onDismiss = {

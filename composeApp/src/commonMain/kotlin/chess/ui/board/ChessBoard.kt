@@ -88,7 +88,7 @@ fun ChessBoard(
                         if (displayPiece != null) {
                             Text(
                                 text = PieceUnicode.get(displayPiece.type, displayPiece.color),
-                                fontSize = 32.sp,
+                                fontSize = 42.sp,
                                 textAlign = TextAlign.Center,
                                 color = if (ghostActive && isGhostDiff) ChessColors.GhostPiece else Color.Unspecified,
                                 modifier = Modifier.testTag(

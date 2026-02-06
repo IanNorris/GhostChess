@@ -2,6 +2,7 @@ package chess.web
 
 import chess.core.*
 import chess.engine.SimpleEngine
+import chess.game.Difficulty
 import chess.game.GameConfig
 import chess.game.GameMode
 import chess.game.GameSession
@@ -41,6 +42,12 @@ var gameMode = GameMode.HUMAN_VS_ENGINE
 var playerColor = PieceColor.WHITE
 var ghostDepth = 5
 var showThinking = false
+var difficulty = Difficulty.MEDIUM
+
+// Move timer
+var moveStartTime = 0.0
+var moveTimerInterval: Int? = null
+var gamePaused = false
 
 fun main() {
     window.onload = { setupMenu(); null }
@@ -54,11 +61,14 @@ fun setupMenu() {
     val modeEngine = document.getElementById("mode-vs-engine") as HTMLElement
     val modeHuman = document.getElementById("mode-vs-human") as HTMLElement
     val colorOptions = document.getElementById("color-options") as HTMLElement
+    val difficultyOptions = document.getElementById("difficulty-options") as HTMLElement
 
     fun updateModeChips() {
         modeEngine.className = if (gameMode == GameMode.HUMAN_VS_ENGINE) "chip selected" else "chip"
         modeHuman.className = if (gameMode == GameMode.HUMAN_VS_HUMAN) "chip selected" else "chip"
         colorOptions.style.display = if (gameMode == GameMode.HUMAN_VS_ENGINE) "block" else "none"
+        difficultyOptions.style.display = if (gameMode == GameMode.HUMAN_VS_ENGINE) "block" else "none"
+        updateWinLossDisplay()
     }
 
     modeEngine.onclick = { gameMode = GameMode.HUMAN_VS_ENGINE; updateModeChips(); null }
@@ -76,6 +86,22 @@ fun setupMenu() {
     colorWhite.onclick = { playerColor = PieceColor.WHITE; updateColorChips(); null }
     colorBlack.onclick = { playerColor = PieceColor.BLACK; updateColorChips(); null }
 
+    // Difficulty chips
+    val diffEasy = document.getElementById("difficulty-easy") as HTMLElement
+    val diffMedium = document.getElementById("difficulty-medium") as HTMLElement
+    val diffHard = document.getElementById("difficulty-hard") as HTMLElement
+
+    fun updateDifficultyChips() {
+        diffEasy.className = if (difficulty == Difficulty.EASY) "chip selected" else "chip"
+        diffMedium.className = if (difficulty == Difficulty.MEDIUM) "chip selected" else "chip"
+        diffHard.className = if (difficulty == Difficulty.HARD) "chip selected" else "chip"
+        updateWinLossDisplay()
+    }
+
+    diffEasy.onclick = { difficulty = Difficulty.EASY; updateDifficultyChips(); null }
+    diffMedium.onclick = { difficulty = Difficulty.MEDIUM; updateDifficultyChips(); null }
+    diffHard.onclick = { difficulty = Difficulty.HARD; updateDifficultyChips(); null }
+
     // Depth slider
     val depthSlider = document.getElementById("depth-slider") as HTMLInputElement
     val depthLabel = document.getElementById("depth-label")!!
@@ -89,15 +115,20 @@ fun setupMenu() {
     val thinkingToggle = document.getElementById("thinking-toggle") as HTMLInputElement
     thinkingToggle.onchange = { showThinking = thinkingToggle.checked; null }
 
+    // Win/loss display
+    updateWinLossDisplay()
+
     // Start game
     document.getElementById("start-game-btn")!!.addEventListener("click", {
         flipped = playerColor == PieceColor.BLACK
-        val config = GameConfig(gameMode, playerColor, ghostDepth, showThinking)
+        val config = GameConfig(gameMode, playerColor, ghostDepth, showThinking, difficulty)
         val engine = SimpleEngine()
         session = GameSession(engine, config)
 
         menuScreen.asDynamic().style.display = "none"
         gameScreen.asDynamic().style.display = "block"
+        gamePaused = false
+        startMoveTimer()
 
         scope.launch {
             session!!.initialize()
@@ -105,6 +136,7 @@ fun setupMenu() {
             // If playing black, engine goes first
             if (gameMode == GameMode.HUMAN_VS_ENGINE && playerColor == PieceColor.BLACK) {
                 session!!.makeEngineMove()
+                resetMoveTimer()
             }
 
             renderBoard()
@@ -112,14 +144,39 @@ fun setupMenu() {
         }
     })
 
-    // Back button
-    document.getElementById("back-btn")!!.addEventListener("click", {
+    fun returnToMenu() {
         autoPlayJob?.cancel()
+        stopMoveTimer()
         session = null
         selectedSquare = null
         legalMovesForSelected = emptyList()
+        gamePaused = false
+        (document.getElementById("pause-modal") as HTMLElement).className = ""
         gameScreen.asDynamic().style.display = "none"
         menuScreen.asDynamic().style.display = "block"
+        updateWinLossDisplay()
+    }
+
+    // Pause button
+    document.getElementById("pause-btn")!!.addEventListener("click", {
+        gamePaused = true
+        stopMoveTimer()
+        (document.getElementById("pause-modal") as HTMLElement).className = "active"
+    })
+
+    // Resume button
+    document.getElementById("resume-btn")!!.addEventListener("click", {
+        gamePaused = false
+        (document.getElementById("pause-modal") as HTMLElement).className = ""
+        val s = session
+        if (s != null && s.getGameState().status == GameStatus.IN_PROGRESS) {
+            startMoveTimer()
+        }
+    })
+
+    // Quit button (return to menu)
+    document.getElementById("quit-btn")!!.addEventListener("click", {
+        returnToMenu()
     })
 
     // Undo button
@@ -130,6 +187,7 @@ fun setupMenu() {
             s.undoMove()
             selectedSquare = null
             legalMovesForSelected = emptyList()
+            resetMoveTimer()
             renderBoard()
             renderGhostControls()
         } catch (_: Exception) {}
@@ -272,6 +330,7 @@ fun renderMoveHistory() {
 
 fun onSquareClick(square: Square) {
     val s = session ?: return
+    if (gamePaused) return
     if (s.getGameState().status != GameStatus.IN_PROGRESS) return
     if (!s.isPlayerTurn()) return
 
@@ -316,6 +375,7 @@ fun executeMove(s: GameSession, move: Move) {
         s.makePlayerMove(move)
         selectedSquare = null
         legalMovesForSelected = emptyList()
+        resetMoveTimer()
 
         // In vs-engine mode, let engine respond first, then show ghost preview
         if (s.config.mode == GameMode.HUMAN_VS_ENGINE &&
@@ -325,10 +385,15 @@ fun executeMove(s: GameSession, move: Move) {
             renderBoard()
             delay(300)
             s.makeEngineMove()
+            resetMoveTimer()
         }
 
+        checkAndRecordGameEnd()
+
         // Request ghost preview from current position (after engine responded if applicable)
-        s.requestGhostPreview()
+        if (s.getGameState().status == GameStatus.IN_PROGRESS) {
+            s.requestGhostPreview()
+        }
         renderBoard()
         renderGhostControls()
         renderThinkingPanel()
@@ -507,6 +572,20 @@ fun setupGhostButtons() {
         autoPlayJob?.cancel()
         scope.launch {
             s.acceptGhostLine()
+            resetMoveTimer()
+
+            // If it's the engine's turn after accepting, let engine respond
+            if (s.config.mode == GameMode.HUMAN_VS_ENGINE &&
+                s.getGameState().status == GameStatus.IN_PROGRESS &&
+                !s.isPlayerTurn()
+            ) {
+                renderBoard()
+                delay(300)
+                s.makeEngineMove()
+                resetMoveTimer()
+            }
+
+            checkAndRecordGameEnd()
             renderBoard()
             renderGhostControls()
             renderThinkingPanel()
@@ -538,5 +617,70 @@ fun setupGhostButtons() {
             hidePromotionModal()
             executeMove(s, move)
         })
+    }
+}
+
+// --- Move Timer ---
+
+fun startMoveTimer() {
+    moveStartTime = window.asDynamic().performance.now() as Double
+    moveTimerInterval?.let { window.clearInterval(it) }
+    moveTimerInterval = window.setInterval({
+        if (!gamePaused) {
+            val elapsed = (window.asDynamic().performance.now() as Double - moveStartTime) / 1000.0
+            val mins = elapsed.toInt() / 60
+            val secs = elapsed.toInt() % 60
+            document.getElementById("move-timer")?.textContent = "$mins:${secs.toString().padStart(2, '0')}"
+        }
+    }, 500)
+}
+
+fun stopMoveTimer() {
+    moveTimerInterval?.let { window.clearInterval(it) }
+    moveTimerInterval = null
+}
+
+fun resetMoveTimer() {
+    moveStartTime = window.asDynamic().performance.now() as Double
+    document.getElementById("move-timer")?.textContent = "0:00"
+}
+
+// --- Win/Loss Counter (localStorage) ---
+
+fun getWinLossKey(diff: Difficulty): String = "ghostchess_${diff.name.lowercase()}"
+
+fun getWinLoss(diff: Difficulty): Pair<Int, Int> {
+    val stored = window.localStorage.getItem(getWinLossKey(diff)) ?: "0:0"
+    val parts = stored.split(":")
+    return (parts.getOrNull(0)?.toIntOrNull() ?: 0) to (parts.getOrNull(1)?.toIntOrNull() ?: 0)
+}
+
+fun recordResult(diff: Difficulty, won: Boolean) {
+    val (w, l) = getWinLoss(diff)
+    val newVal = if (won) "${w + 1}:$l" else "$w:${l + 1}"
+    window.localStorage.setItem(getWinLossKey(diff), newVal)
+}
+
+fun updateWinLossDisplay() {
+    val el = document.getElementById("win-loss-display") ?: return
+    if (gameMode != GameMode.HUMAN_VS_ENGINE) {
+        el.textContent = ""
+        return
+    }
+    val (w, l) = getWinLoss(difficulty)
+    el.textContent = "${difficulty.label()} — Wins: $w  Losses: $l"
+}
+
+fun checkAndRecordGameEnd() {
+    val s = session ?: return
+    val status = s.getGameState().status
+    if (status == GameStatus.IN_PROGRESS) return
+    if (s.config.mode != GameMode.HUMAN_VS_ENGINE) return
+
+    stopMoveTimer()
+    val playerWon = (status == GameStatus.WHITE_WINS && s.config.playerColor == PieceColor.WHITE) ||
+            (status == GameStatus.BLACK_WINS && s.config.playerColor == PieceColor.BLACK)
+    if (status != GameStatus.DRAW) {
+        recordResult(s.config.difficulty, playerWon)
     }
 }

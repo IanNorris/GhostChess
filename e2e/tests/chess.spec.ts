@@ -47,8 +47,8 @@ test.describe('Chess Simulator', () => {
       await expect(page.getByTestId('game-status')).toContainText('White to move');
     });
 
-    test('has back button', async ({ page }) => {
-      await expect(page.getByTestId('back-btn')).toBeVisible();
+    test('has pause button', async ({ page }) => {
+      await expect(page.getByTestId('pause-btn')).toBeVisible();
     });
 
     test('has undo button', async ({ page }) => {
@@ -83,8 +83,10 @@ test.describe('Chess Simulator', () => {
       await expect(page.getByTestId('piece-e4')).toBeVisible({ timeout: 5000 });
     });
 
-    test('back button returns to menu', async ({ page }) => {
-      await page.getByTestId('back-btn').click();
+    test('pause then quit returns to menu', async ({ page }) => {
+      await page.getByTestId('pause-btn').click();
+      await expect(page.getByTestId('pause-modal')).toBeVisible({ timeout: 5000 });
+      await page.getByTestId('quit-btn').click();
       await expect(page.getByTestId('menu-screen')).toBeVisible({ timeout: 5000 });
     });
   });

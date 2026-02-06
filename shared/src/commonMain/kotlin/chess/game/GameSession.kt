@@ -10,11 +10,17 @@ enum class GameMode {
     HUMAN_VS_HUMAN
 }
 
+enum class Difficulty {
+    EASY, MEDIUM, HARD;
+    fun label(): String = name.lowercase().replaceFirstChar { it.uppercase() }
+}
+
 data class GameConfig(
     val mode: GameMode = GameMode.HUMAN_VS_ENGINE,
     val playerColor: PieceColor = PieceColor.WHITE,
     val ghostDepth: Int = 5,
-    val showEngineThinking: Boolean = false
+    val showEngineThinking: Boolean = false,
+    val difficulty: Difficulty = Difficulty.MEDIUM
 )
 
 class GameSession(
@@ -49,7 +55,12 @@ class GameSession(
         require(config.mode == GameMode.HUMAN_VS_ENGINE) { "Engine moves only in vs engine mode" }
         require(!isPlayerTurn()) { "It's the player's turn" }
 
-        val analysis = engine.getBestLine(gameState.toFen(), 1)
+        val searchDepth = when (config.difficulty) {
+            Difficulty.EASY -> 1
+            Difficulty.MEDIUM -> 1
+            Difficulty.HARD -> 2
+        }
+        val analysis = engine.getBestLine(gameState.toFen(), searchDepth)
         if (analysis.bestLine.isNotEmpty()) {
             gameState = gameState.makeMove(analysis.bestLine.first())
         }

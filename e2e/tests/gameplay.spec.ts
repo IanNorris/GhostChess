@@ -258,4 +258,67 @@ test.describe('Chess Gameplay', () => {
       await expect(page.getByTestId('promotion-modal')).not.toBeVisible();
     });
   });
+
+  test.describe('Checkmate', () => {
+    test("fool's mate results in Black wins", async ({ page }) => {
+      await startHvH(page);
+
+      // 1. f3
+      await makeMove(page, 'f2', 'f3');
+      await page.getByTestId('ghost-dismiss-btn').click({ timeout: 10000 });
+      // 1... e5
+      await makeMove(page, 'e7', 'e5');
+      await page.getByTestId('ghost-dismiss-btn').click({ timeout: 10000 });
+      // 2. g4
+      await makeMove(page, 'g2', 'g4');
+      await page.getByTestId('ghost-dismiss-btn').click({ timeout: 10000 });
+      // 2... Qh4#
+      await makeMove(page, 'd8', 'h4');
+
+      // Game should be over — Black wins
+      await expect(page.getByTestId('game-status')).toContainText('Black wins', { timeout: 5000 });
+    });
+
+    test("scholar's mate results in White wins", async ({ page }) => {
+      await startHvH(page);
+
+      // 1. e4 e5 2. Bc4 Nc6 3. Qh5 Nf6 4. Qxf7#
+      await makeMove(page, 'e2', 'e4');
+      await page.getByTestId('ghost-dismiss-btn').click({ timeout: 10000 });
+      await makeMove(page, 'e7', 'e5');
+      await page.getByTestId('ghost-dismiss-btn').click({ timeout: 10000 });
+      await makeMove(page, 'f1', 'c4');
+      await page.getByTestId('ghost-dismiss-btn').click({ timeout: 10000 });
+      await makeMove(page, 'b8', 'c6');
+      await page.getByTestId('ghost-dismiss-btn').click({ timeout: 10000 });
+      await makeMove(page, 'd1', 'h5');
+      await page.getByTestId('ghost-dismiss-btn').click({ timeout: 10000 });
+      await makeMove(page, 'g8', 'f6');
+      await page.getByTestId('ghost-dismiss-btn').click({ timeout: 10000 });
+      await makeMove(page, 'h5', 'f7');
+
+      await expect(page.getByTestId('game-status')).toContainText('White wins', { timeout: 5000 });
+    });
+
+    test('no moves possible after checkmate', async ({ page }) => {
+      await startHvH(page);
+
+      // Fool's mate
+      await makeMove(page, 'f2', 'f3');
+      await page.getByTestId('ghost-dismiss-btn').click({ timeout: 10000 });
+      await makeMove(page, 'e7', 'e5');
+      await page.getByTestId('ghost-dismiss-btn').click({ timeout: 10000 });
+      await makeMove(page, 'g2', 'g4');
+      await page.getByTestId('ghost-dismiss-btn').click({ timeout: 10000 });
+      await makeMove(page, 'd8', 'h4');
+
+      await expect(page.getByTestId('game-status')).toContainText('Black wins', { timeout: 5000 });
+
+      // Clicking a piece should not show legal moves
+      await page.getByTestId('square-e2').click();
+      await page.waitForTimeout(200);
+      const dots = await page.locator('.legal-dot').count();
+      expect(dots).toBe(0);
+    });
+  });
 });

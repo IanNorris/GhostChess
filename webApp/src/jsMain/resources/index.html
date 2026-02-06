@@ -14,7 +14,7 @@
             justify-content: center;
             min-height: 100vh;
         }
-        #app { width: 100%; max-width: 600px; padding: 16px; }
+        #app { width: 100%; max-width: 600px; padding: 16px; padding-top: 40px; }
 
         /* Menu */
         #menu-screen { text-align: center; padding-top: 60px; }
@@ -65,7 +65,7 @@
             position: absolute;
             top: 50%; left: 50%;
             transform: translate(-50%, -50%);
-            font-size: min(5vw, 40px);
+            font-size: min(6.5vw, 52px);
             line-height: 1;
             pointer-events: none;
         }
@@ -84,7 +84,7 @@
             position: absolute; opacity: 0.4; pointer-events: none;
             top: 50%; left: 50%; transform: translate(-50%, -50%);
         }
-        .ghost-piece span { font-size: min(5vw, 40px); line-height: 1; }
+        .ghost-piece span { font-size: min(6.5vw, 52px); line-height: 1; }
 
         .rank-col { display: flex; flex-direction: column; justify-content: space-around; font-size: 11px; color: #aaa; text-align: center; }
         .file-row { display: flex; justify-content: space-around; font-size: 11px; color: #aaa; margin-left: 20px; }
@@ -135,12 +135,12 @@
         #move-history span { margin-right: 8px; }
 
         /* Promotion modal */
-        #promotion-modal {
+        #promotion-modal, #pause-modal {
             display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.6); z-index: 100;
             justify-content: center; align-items: center;
         }
-        #promotion-modal.active { display: flex; }
+        #promotion-modal.active, #pause-modal.active { display: flex; }
         .promotion-dialog {
             background: #3D3D3D; border-radius: 12px; padding: 20px; text-align: center;
         }
@@ -187,13 +187,25 @@
             <input type="checkbox" data-testid="thinking-toggle" id="thinking-toggle">
         </div>
 
+        <div class="option-group" id="difficulty-options">
+            <label>Difficulty</label>
+            <div class="chip-row">
+                <div class="chip" data-testid="difficulty-easy" id="difficulty-easy">Easy</div>
+                <div class="chip selected" data-testid="difficulty-medium" id="difficulty-medium">Medium</div>
+                <div class="chip" data-testid="difficulty-hard" id="difficulty-hard">Hard</div>
+            </div>
+        </div>
+
+        <div id="win-loss-display" data-testid="win-loss-display" style="margin-top:12px; font-size:13px; color:#aaa;"></div>
+
         <button id="start-game-btn" data-testid="start-game-btn">Start Game</button>
     </div>
 
     <!-- Game Screen -->
     <div id="game-screen" data-testid="game-screen">
         <div class="top-bar">
-            <button id="back-btn" data-testid="back-btn">← Back</button>
+            <button id="pause-btn" data-testid="pause-btn">⏸ Pause</button>
+            <span id="move-timer" data-testid="move-timer" style="font-size:13px; color:#FFB74D;">0:00</span>
             <span id="game-status" data-testid="game-status">White to move</span>
             <button id="undo-btn" data-testid="undo-btn">Undo</button>
         </div>
@@ -242,6 +254,17 @@
                 <button data-testid="promote-rook" data-piece="rook"></button>
                 <button data-testid="promote-bishop" data-piece="bishop"></button>
                 <button data-testid="promote-knight" data-piece="knight"></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pause Menu -->
+    <div id="pause-modal" data-testid="pause-modal">
+        <div class="promotion-dialog" style="min-width: 240px;">
+            <h3 style="margin-bottom:20px;">Game Paused</h3>
+            <div style="display:flex; flex-direction:column; gap:12px;">
+                <button id="resume-btn" data-testid="resume-btn" style="padding:12px 24px; font-size:16px; background:#6BAF6B; color:#fff; border:none; border-radius:8px; cursor:pointer;">Resume</button>
+                <button id="quit-btn" data-testid="quit-btn" style="padding:12px 24px; font-size:16px; background:#555; color:#E0E0E0; border:1px solid #666; border-radius:8px; cursor:pointer;">Return to Menu</button>
             </div>
         </div>
     </div>
