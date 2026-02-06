@@ -10,9 +10,9 @@ export default defineConfig({
     trace: 'on-first-retry',
   },
   webServer: {
-    command: 'cd .. && ./gradlew :composeApp:wasmJsBrowserDevelopmentRun --no-daemon',
+    command: 'cd ../webApp/build/dist/js/developmentExecutable && python3 -m http.server 8080',
     port: 8080,
-    timeout: 180000,
+    timeout: 10000,
     reuseExistingServer: true,
   },
   projects: [

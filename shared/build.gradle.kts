@@ -4,6 +4,10 @@ plugins {
 
 kotlin {
     jvm()
+    js(IR) {
+        browser()
+        binaries.executable()
+    }
     wasmJs {
         browser()
     }

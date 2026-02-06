@@ -17,3 +17,4 @@ rootProject.name = "ChessSimulator"
 
 include(":shared")
 include(":composeApp")
+include(":webApp")
