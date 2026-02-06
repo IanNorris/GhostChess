@@ -136,7 +136,7 @@ test.describe('Chess Gameplay', () => {
       await expect(page.getByTestId('ghost-accept-btn')).toBeEnabled();
     });
 
-    test('ghost accept applies moves to the game', async ({ page }) => {
+    test('ghost accept dismisses preview without changing game', async ({ page }) => {
       await startHvH(page);
 
       await makeMove(page, 'e2', 'e4');
@@ -152,9 +152,9 @@ test.describe('Chess Gameplay', () => {
       // Ghost controls should disappear
       await expect(page.getByTestId('ghost-controls')).not.toBeVisible({ timeout: 5000 });
 
-      // Move history should have more moves
-      const historyEl = page.getByTestId('move-history');
-      await expect(historyEl).toBeVisible();
+      // Board should show the real position (after e4 only, not ghost moves)
+      // The pawn should be at e4 and e2 should be empty
+      await expect(page.getByTestId('piece-e4')).toBeVisible();
     });
 
     test('ghost reset returns to original position', async ({ page }) => {

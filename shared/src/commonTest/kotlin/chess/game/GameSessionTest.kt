@@ -120,7 +120,7 @@ class GameSessionTest {
     }
 
     @Test
-    fun ghostAcceptAppliesMoves() = runTest {
+    fun ghostAcceptDismissesPreview() = runTest {
         val session = createSession(mode = GameMode.HUMAN_VS_HUMAN)
         session.makePlayerMove(Move(Square(4, 1), Square(4, 3)))
         session.requestGhostPreview()
@@ -130,7 +130,8 @@ class GameSessionTest {
         val beforeAccept = session.getGameState().moveHistory.size
         session.acceptGhostLine()
         val afterAccept = session.getGameState().moveHistory.size
-        assertTrue(afterAccept > beforeAccept, "Accepting ghost should apply moves")
+        assertEquals(beforeAccept, afterAccept, "Accept should not apply moves")
+        assertFalse(session.getGhostState().isActive, "Ghost should be dismissed")
     }
 
     @Test

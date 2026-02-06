@@ -12,6 +12,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import chess.core.*
 import chess.engine.SimpleEngine
+import chess.game.Difficulty
 import chess.game.GameConfig
 import chess.game.GameMode
 import chess.game.GameSession
@@ -59,6 +60,7 @@ fun MenuScreen(onStartGame: (GameConfig) -> Unit) {
     var playerColor by remember { mutableStateOf(PieceColor.WHITE) }
     var showThinking by remember { mutableStateOf(false) }
     var ghostDepth by remember { mutableStateOf(5) }
+    var difficulty by remember { mutableStateOf(Difficulty.MEDIUM) }
 
     Column(
         modifier = Modifier
@@ -115,6 +117,21 @@ fun MenuScreen(onStartGame: (GameConfig) -> Unit) {
                 )
             }
             Spacer(modifier = Modifier.height(16.dp))
+
+            // Difficulty
+            Text("Difficulty", color = ChessColors.OnSurface, fontSize = 16.sp)
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Difficulty.entries.forEach { diff ->
+                    FilterChip(
+                        selected = difficulty == diff,
+                        onClick = { difficulty = diff },
+                        label = { Text(diff.label()) },
+                        modifier = Modifier.testTag("difficulty-${diff.name.lowercase()}")
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
         }
 
         // Ghost depth
@@ -154,7 +171,8 @@ fun MenuScreen(onStartGame: (GameConfig) -> Unit) {
                         mode = selectedMode,
                         playerColor = playerColor,
                         ghostDepth = ghostDepth,
-                        showEngineThinking = showThinking
+                        showEngineThinking = showThinking,
+                        difficulty = difficulty
                     )
                 )
             },
@@ -177,12 +195,23 @@ fun GameScreen(config: GameConfig, onBack: () -> Unit) {
     var selectedSquare by remember { mutableStateOf<Square?>(null) }
     var legalMovesForSelected by remember { mutableStateOf<List<Move>>(emptyList()) }
     var initialized by remember { mutableStateOf(false) }
+    var gamePaused by remember { mutableStateOf(false) }
+    var moveElapsedSecs by remember { mutableStateOf(0) }
+
+    // Move timer
+    LaunchedEffect(gamePaused, gameState.status) {
+        if (!gamePaused && gameState.status == GameStatus.IN_PROGRESS && initialized) {
+            while (true) {
+                delay(1000)
+                if (!gamePaused) moveElapsedSecs++
+            }
+        }
+    }
 
     // Initialize engine
     LaunchedEffect(Unit) {
         session.initialize()
         initialized = true
-        // If playing black vs engine, engine moves first
         if (config.mode == GameMode.HUMAN_VS_ENGINE &&
             config.playerColor == PieceColor.BLACK
         ) {
@@ -207,19 +236,19 @@ fun GameScreen(config: GameConfig, onBack: () -> Unit) {
     fun onSquareClick(square: Square) {
         if (!initialized || !session.isPlayerTurn()) return
         if (gameState.status != GameStatus.IN_PROGRESS) return
+        if (gamePaused) return
 
         val piece = gameState.board[square]
 
         if (selectedSquare != null) {
-            // Try to make a move
             val move = legalMovesForSelected.find { it.to == square }
             if (move != null) {
                 scope.launch {
                     gameState = session.makePlayerMove(move)
                     selectedSquare = null
                     legalMovesForSelected = emptyList()
+                    moveElapsedSecs = 0
 
-                    // Engine responds in vs engine mode
                     if (config.mode == GameMode.HUMAN_VS_ENGINE &&
                         gameState.status == GameStatus.IN_PROGRESS &&
                         !session.isPlayerTurn()
@@ -227,9 +256,9 @@ fun GameScreen(config: GameConfig, onBack: () -> Unit) {
                         delay(500)
                         session.makeEngineMove()
                         gameState = session.getGameState()
+                        moveElapsedSecs = 0
                     }
 
-                    // Request ghost preview after engine has responded
                     session.requestGhostPreview()
                     ghostState = session.getGhostState()
                 }
@@ -237,7 +266,6 @@ fun GameScreen(config: GameConfig, onBack: () -> Unit) {
             }
         }
 
-        // Select a piece
         if (piece != null && piece.color == gameState.board.activeColor) {
             selectedSquare = square
             legalMovesForSelected = session.legalMoves().filter { it.from == square }
@@ -247,122 +275,166 @@ fun GameScreen(config: GameConfig, onBack: () -> Unit) {
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(start = 8.dp, end = 8.dp, bottom = 8.dp, top = 36.dp)
-            .testTag("game-screen"),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        // Top bar
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(start = 8.dp, end = 8.dp, bottom = 8.dp, top = 36.dp)
+                .testTag("game-screen"),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            TextButton(
-                onClick = onBack,
-                modifier = Modifier.testTag("back-btn")
+            // Top bar
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("← Back", color = ChessColors.OnSurface)
+                OutlinedButton(
+                    onClick = { gamePaused = true },
+                    modifier = Modifier.testTag("pause-btn").height(44.dp),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("⏸ Pause", color = ChessColors.OnSurface, fontSize = 15.sp)
+                }
+
+                // Move timer
+                val mins = moveElapsedSecs / 60
+                val secs = moveElapsedSecs % 60
+                Text(
+                    text = "$mins:${secs.toString().padStart(2, '0')}",
+                    color = ChessColors.Accent,
+                    fontSize = 14.sp,
+                    modifier = Modifier.testTag("move-timer")
+                )
+
+                Text(
+                    text = when (gameState.status) {
+                        GameStatus.IN_PROGRESS -> {
+                            val turn = if (gameState.board.activeColor == PieceColor.WHITE) "White" else "Black"
+                            "$turn to move"
+                        }
+                        GameStatus.WHITE_WINS -> "White wins! ♔"
+                        GameStatus.BLACK_WINS -> "Black wins! ♚"
+                        GameStatus.DRAW -> "Draw"
+                    },
+                    color = ChessColors.OnSurface,
+                    fontSize = 14.sp,
+                    modifier = Modifier.testTag("game-status")
+                )
+                OutlinedButton(
+                    onClick = {
+                        session.undoMove()
+                        gameState = session.getGameState()
+                        ghostState = session.getGhostState()
+                        selectedSquare = null
+                        legalMovesForSelected = emptyList()
+                        moveElapsedSecs = 0
+                    },
+                    modifier = Modifier.testTag("undo-btn").height(44.dp),
+                    shape = RoundedCornerShape(8.dp),
+                    enabled = gameState.moveHistory.isNotEmpty()
+                ) {
+                    Text("Undo", color = ChessColors.OnSurface, fontSize = 15.sp)
+                }
             }
-            Text(
-                text = when (gameState.status) {
-                    GameStatus.IN_PROGRESS -> {
-                        val turn = if (gameState.board.activeColor == PieceColor.WHITE) "White" else "Black"
-                        "$turn to move"
-                    }
-                    GameStatus.WHITE_WINS -> "White wins! ♔"
-                    GameStatus.BLACK_WINS -> "Black wins! ♚"
-                    GameStatus.DRAW -> "Draw"
-                },
-                color = ChessColors.OnSurface,
-                fontSize = 16.sp,
-                modifier = Modifier.testTag("game-status")
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Chess board
+            ChessBoard(
+                board = gameState.board,
+                selectedSquare = selectedSquare,
+                legalMoves = legalMovesForSelected,
+                ghostState = ghostState,
+                flipped = config.playerColor == PieceColor.BLACK,
+                onSquareClick = ::onSquareClick,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp)
             )
-            TextButton(
-                onClick = {
-                    session.undoMove()
-                    gameState = session.getGameState()
-                    ghostState = session.getGhostState()
-                    selectedSquare = null
-                    legalMovesForSelected = emptyList()
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Engine thinking panel
+            EngineThinkingPanel(
+                state = ghostState,
+                modifier = Modifier.padding(horizontal = 8.dp)
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Ghost preview controls
+            GhostPreviewControls(
+                state = ghostState,
+                onStepBack = {
+                    ghostState = session.ghostStepBack()
                 },
-                modifier = Modifier.testTag("undo-btn"),
-                enabled = gameState.moveHistory.isNotEmpty()
-            ) {
-                Text("Undo", color = ChessColors.OnSurface)
-            }
+                onStepForward = {
+                    ghostState = session.ghostStepForward()
+                },
+                onReset = {
+                    ghostState = session.ghostReset()
+                },
+                onPause = {
+                    ghostState = session.ghostPause()
+                },
+                onResume = {
+                    ghostState = session.ghostResume()
+                },
+                onAccept = {
+                    scope.launch {
+                        gameState = session.acceptGhostLine()
+                        ghostState = session.getGhostState()
+                    }
+                },
+                onDismiss = {
+                    ghostState = session.dismissGhost()
+                },
+                onToggleMode = {
+                    val newMode = if (ghostState.mode == GhostPreviewMode.AUTO_PLAY)
+                        GhostPreviewMode.STEP_THROUGH else GhostPreviewMode.AUTO_PLAY
+                    ghostState = session.ghostSetMode(newMode)
+                },
+                modifier = Modifier.padding(horizontal = 8.dp)
+            )
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Chess board
-        ChessBoard(
-            board = gameState.board,
-            selectedSquare = selectedSquare,
-            legalMoves = legalMovesForSelected,
-            ghostState = ghostState,
-            flipped = config.playerColor == PieceColor.BLACK,
-            onSquareClick = ::onSquareClick,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp)
-        )
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // Engine thinking panel
-        EngineThinkingPanel(
-            state = ghostState,
-            modifier = Modifier.padding(horizontal = 8.dp)
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Ghost preview controls
-        GhostPreviewControls(
-            state = ghostState,
-            onStepBack = {
-                ghostState = session.ghostStepBack()
-            },
-            onStepForward = {
-                ghostState = session.ghostStepForward()
-            },
-            onReset = {
-                ghostState = session.ghostReset()
-            },
-            onPause = {
-                ghostState = session.ghostPause()
-            },
-            onResume = {
-                ghostState = session.ghostResume()
-            },
-            onAccept = {
-                scope.launch {
-                    gameState = session.acceptGhostLine()
-                    ghostState = session.getGhostState()
-
-                    // If engine's turn after accepting, let engine respond
-                    if (config.mode == GameMode.HUMAN_VS_ENGINE &&
-                        gameState.status == GameStatus.IN_PROGRESS &&
-                        !session.isPlayerTurn()
+        // Pause modal overlay
+        if (gamePaused) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(ChessColors.Background.copy(alpha = 0.8f))
+                    .testTag("pause-modal"),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    modifier = Modifier
+                        .background(ChessColors.Surface, RoundedCornerShape(12.dp))
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text("Game Paused", color = ChessColors.OnSurface, fontSize = 20.sp)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Button(
+                        onClick = { gamePaused = false },
+                        modifier = Modifier.width(200.dp).testTag("resume-btn"),
+                        colors = ButtonDefaults.buttonColors(containerColor = ChessColors.Primary)
                     ) {
-                        delay(300)
-                        session.makeEngineMove()
-                        gameState = session.getGameState()
+                        Text("Resume", fontSize = 16.sp)
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            gamePaused = false
+                            onBack()
+                        },
+                        modifier = Modifier.width(200.dp).testTag("quit-btn")
+                    ) {
+                        Text("Return to Menu", fontSize = 16.sp, color = ChessColors.OnSurface)
                     }
                 }
-            },
-            onDismiss = {
-                ghostState = session.dismissGhost()
-            },
-            onToggleMode = {
-                val newMode = if (ghostState.mode == GhostPreviewMode.AUTO_PLAY)
-                    GhostPreviewMode.STEP_THROUGH else GhostPreviewMode.AUTO_PLAY
-                ghostState = session.ghostSetMode(newMode)
-            },
-            modifier = Modifier.padding(horizontal = 8.dp)
-        )
+            }
+        }
     }
 }

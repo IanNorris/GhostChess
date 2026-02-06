@@ -82,10 +82,10 @@ class GameSession(
     }
 
     suspend fun acceptGhostLine(): GameState {
-        val (_, moves) = ghostManager.accept()
-        for (move in moves) {
-            gameState = gameState.makeMove(move)
-        }
+        // Accept just dismisses the ghost preview — the game continues
+        // from the real position (after the player's move + engine response).
+        // The ghost was purely informational ("what would happen").
+        ghostManager.dismiss()
         return gameState
     }
 

@@ -38,7 +38,11 @@
         /* Game */
         #game-screen { display: none; }
         .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-        .top-bar button { background: none; border: none; color: #E0E0E0; cursor: pointer; font-size: 14px; }
+        .top-bar button {
+            background: none; border: 1px solid #666; color: #E0E0E0; cursor: pointer;
+            font-size: 16px; padding: 10px 18px; border-radius: 8px; min-height: 44px;
+        }
+        .top-bar button:hover { background: #444; }
 
         /* Board */
         #board-wrapper {

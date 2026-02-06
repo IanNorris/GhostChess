@@ -572,20 +572,6 @@ fun setupGhostButtons() {
         autoPlayJob?.cancel()
         scope.launch {
             s.acceptGhostLine()
-            resetMoveTimer()
-
-            // If it's the engine's turn after accepting, let engine respond
-            if (s.config.mode == GameMode.HUMAN_VS_ENGINE &&
-                s.getGameState().status == GameStatus.IN_PROGRESS &&
-                !s.isPlayerTurn()
-            ) {
-                renderBoard()
-                delay(300)
-                s.makeEngineMove()
-                resetMoveTimer()
-            }
-
-            checkAndRecordGameEnd()
             renderBoard()
             renderGhostControls()
             renderThinkingPanel()

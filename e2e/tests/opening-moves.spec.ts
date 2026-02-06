@@ -97,7 +97,7 @@ test.describe('Opening moves (deterministic engine)', () => {
 
 test.describe('Ghost accept regression (vs Engine)', () => {
 
-  test('accept applies ghost moves without crash', async ({ page }) => {
+  test('accept dismisses ghost without crash', async ({ page }) => {
     page.on('pageerror', err => { throw new Error('Page error: ' + err.message); });
 
     await startVsEngine(page);
@@ -113,22 +113,18 @@ test.describe('Ghost accept regression (vs Engine)', () => {
     await page.getByTestId('ghost-step-forward-btn').click();
     await page.waitForTimeout(100);
 
-    // Accept — should NOT crash
+    // Accept — should NOT crash, should dismiss ghost
     await page.getByTestId('ghost-accept-btn').click();
     await page.waitForTimeout(500);
 
     // Ghost should be dismissed
     await expect(page.locator('#ghost-controls')).not.toHaveClass(/active/);
 
-    // History should contain accepted moves
-    const history = await page.locator('#move-history').textContent();
-    expect(history!.length).toBeGreaterThan(15);
-
-    // Game should still be playable
-    await expect(page.getByTestId('game-status')).toContainText(/to move/);
+    // Game should still be at white's turn (accept doesn't change position)
+    await expect(page.getByTestId('game-status')).toContainText('White to move');
   });
 
-  test('accept odd number of ghost moves triggers engine response (no soft-lock)', async ({ page }) => {
+  test('accept returns to real position (player can still move)', async ({ page }) => {
     page.on('pageerror', err => { throw new Error('Page error: ' + err.message); });
 
     await startVsEngine(page);
@@ -138,45 +134,19 @@ test.describe('Ghost accept regression (vs Engine)', () => {
     await page.getByTestId('ghost-play-pause-btn').click();
     await page.waitForTimeout(200);
 
-    // Accept 1 move (white's move) — leaves it as black's turn
+    // Step through some ghost moves
     await page.getByTestId('ghost-step-forward-btn').click();
     await page.waitForTimeout(100);
     await page.getByTestId('ghost-accept-btn').click();
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(500);
 
-    // Engine should have responded — it should be White's turn
+    // Should be white's turn — player can select pieces
     await expect(page.getByTestId('game-status')).toContainText('White to move', { timeout: 5000 });
 
-    // Player can still make a move
     await page.getByTestId('square-d2').click();
     await page.waitForTimeout(200);
     const dots = await page.locator('.legal-dot').count();
     expect(dots).toBeGreaterThan(0);
-  });
-
-  test('accept all 5 ghost moves triggers engine response (no soft-lock)', async ({ page }) => {
-    page.on('pageerror', err => { throw new Error('Page error: ' + err.message); });
-
-    await startVsEngine(page);
-    await makeMove(page, 'e2', 'e4');
-
-    await page.waitForSelector('#ghost-controls.active', { timeout: 10000 });
-    await page.getByTestId('ghost-play-pause-btn').click();
-    await page.waitForTimeout(200);
-
-    // Step through all 5 (odd count — last is white's move)
-    for (let i = 0; i < 5; i++) {
-      const d = await page.locator('#ghost-step-forward-btn').getAttribute('disabled');
-      if (d !== null) break;
-      await page.locator('#ghost-step-forward-btn').click();
-      await page.waitForTimeout(50);
-    }
-
-    await page.getByTestId('ghost-accept-btn').click();
-    await page.waitForTimeout(2000);
-
-    // Engine should have responded
-    await expect(page.getByTestId('game-status')).toContainText('White to move', { timeout: 5000 });
   });
 
   test('accept all ghost moves then continue playing', async ({ page }) => {
@@ -200,18 +170,16 @@ test.describe('Ghost accept regression (vs Engine)', () => {
     await page.getByTestId('ghost-accept-btn').click();
     await page.waitForTimeout(500);
 
-    // Should be able to make another move
-    const status = await page.getByTestId('game-status').textContent();
-    expect(status).toMatch(/to move/);
+    // Should be white's turn at real position
+    await expect(page.getByTestId('game-status')).toContainText('White to move');
 
-    // Find a piece and try to select it
-    const activeColor = status!.includes('White') ? '♙' : '♟';
+    // Find a white pawn and try to select it
     const squares = page.locator('.square');
     const count = await squares.count();
     let clicked = false;
     for (let i = 0; i < count; i++) {
       const text = await squares.nth(i).textContent();
-      if (text?.includes(activeColor)) {
+      if (text?.includes('♙')) {
         await squares.nth(i).click();
         clicked = true;
         break;
@@ -348,8 +316,12 @@ test.describe('Ghost accept regression (vs Human)', () => {
     await page.getByTestId('ghost-accept-btn').click();
     await page.waitForTimeout(500);
 
+    // Accept should NOT change history (just dismisses preview)
     const historyAfter = await page.locator('#move-history').textContent();
-    expect(historyAfter!.length).toBeGreaterThan(historyBefore!.length);
+    expect(historyAfter).toBe(historyBefore);
+
+    // Ghost should be dismissed
+    await expect(page.locator('#ghost-controls')).not.toHaveClass(/active/);
   });
 
   test('multi-move sequence with ghost accept each time', async ({ page }) => {
@@ -357,7 +329,7 @@ test.describe('Ghost accept regression (vs Human)', () => {
 
     await startHvH(page);
 
-    // Move 1: e4, accept ghost
+    // Move 1: e4, accept ghost (just dismisses it)
     await makeMove(page, 'e2', 'e4');
     await page.waitForSelector('#ghost-controls.active', { timeout: 10000 });
     await page.getByTestId('ghost-play-pause-btn').click();
@@ -366,12 +338,11 @@ test.describe('Ghost accept regression (vs Human)', () => {
     await page.getByTestId('ghost-accept-btn').click();
     await page.waitForTimeout(500);
 
-    // Move 2: another move, dismiss ghost
+    // Game should still function — it's black's turn (accept didn't apply ghost moves)
     const status = await page.getByTestId('game-status').textContent();
     expect(status).toMatch(/to move/);
 
-    // Game should still function
     const pieces = await page.locator('[data-testid^="piece-"]').count();
-    expect(pieces).toBeGreaterThan(20); // Should still have most pieces
+    expect(pieces).toBeGreaterThan(20);
   });
 });

@@ -8,9 +8,9 @@ import kotlin.test.*
 
 /**
  * Regression tests for ghost preview accept/dismiss in vs-engine mode.
- * Bug: ghost preview was computed from post-player-move board, then engine
- * also moved, so accept tried to replay moves already on the board (e.g. e7e5
- * applied twice), causing IllegalArgumentException.
+ * Accept now simply dismisses the ghost preview — the game stays at the
+ * real position (after player move + engine response). The ghost is
+ * purely informational ("what would happen").
  */
 class GhostAcceptRegressionTest {
 
@@ -51,13 +51,13 @@ class GhostAcceptRegressionTest {
 
         val historyBefore = session.getGameState().moveHistory.size
 
-        // This should NOT throw IllegalArgumentException
+        // Accept should NOT throw — and should NOT change move history
         val stateAfter = session.acceptGhostLine()
-        assertTrue(stateAfter.moveHistory.size > historyBefore)
+        assertEquals(historyBefore, stateAfter.moveHistory.size)
     }
 
     @Test
-    fun ghostAcceptAppliesCorrectNumberOfMoves() = runTest {
+    fun ghostAcceptDoesNotApplyMoves() = runTest {
         val session = createSession()
         session.makePlayerMove(Move(Square(4, 1), Square(4, 3))) // e2-e4
         session.makeEngineMove()
@@ -67,13 +67,15 @@ class GhostAcceptRegressionTest {
         repeat(stepsToTake) { session.ghostStepForward() }
 
         val historyBefore = session.getGameState().moveHistory.size
+        val boardBefore = session.getGameState().board
         session.acceptGhostLine()
-        val historyAfter = session.getGameState().moveHistory.size
-        assertEquals(historyBefore + stepsToTake, historyAfter)
+        // Accept is informational-only — no moves applied
+        assertEquals(historyBefore, session.getGameState().moveHistory.size)
+        assertEquals(boardBefore, session.getGameState().board)
     }
 
     @Test
-    fun ghostAcceptAllMovesInVsEngine() = runTest {
+    fun ghostAcceptAllMovesDoesNotAdvanceGame() = runTest {
         val session = createSession()
         session.makePlayerMove(Move(Square(4, 1), Square(4, 3))) // e2-e4
         session.makeEngineMove()
@@ -86,7 +88,7 @@ class GhostAcceptRegressionTest {
 
         val historyBefore = session.getGameState().moveHistory.size
         session.acceptGhostLine()
-        assertEquals(historyBefore + totalMoves, session.getGameState().moveHistory.size)
+        assertEquals(historyBefore, session.getGameState().moveHistory.size)
     }
 
     @Test
@@ -117,8 +119,10 @@ class GhostAcceptRegressionTest {
         session.ghostStepForward()
         session.acceptGhostLine()
 
-        // Game should still be in progress with legal moves
+        // Ghost is dismissed, game is at real position, player can continue
+        assertFalse(session.getGhostState().isActive)
         assertEquals(GameStatus.IN_PROGRESS, session.getGameState().status)
+        assertTrue(session.isPlayerTurn())
         assertTrue(session.legalMoves().isNotEmpty())
     }
 
@@ -131,7 +135,7 @@ class GhostAcceptRegressionTest {
         session.ghostStepForward()
         session.acceptGhostLine()
 
-        // Should be able to play again and get another ghost preview
+        // Should be able to play again (still black's turn since accept didn't apply moves)
         val legalMoves = session.legalMoves()
         assertTrue(legalMoves.isNotEmpty())
         session.makePlayerMove(legalMoves.first())
@@ -177,13 +181,14 @@ class GhostAcceptRegressionTest {
             assertTrue(ghost.isActive, "Ghost should be active after $moveStr")
             assertTrue(ghost.predictedLine.isNotEmpty(), "Ghost should have moves after $moveStr")
 
-            // Step through all and accept — should never crash
+            // Step through all and accept — should never crash, should not change game
             repeat(ghost.predictedLine.size) { session.ghostStepForward() }
             val historyBefore = session.getGameState().moveHistory.size
             session.acceptGhostLine()
-            assertTrue(
-                session.getGameState().moveHistory.size > historyBefore,
-                "Accept should apply moves after $moveStr"
+            assertEquals(
+                historyBefore,
+                session.getGameState().moveHistory.size,
+                "Accept should not apply moves after $moveStr"
             )
         }
     }
@@ -201,15 +206,13 @@ class GhostAcceptRegressionTest {
         val realBoard = session.getGameState().board
 
         // Ghost board should differ from real board
-        // The ghost move should have moved a piece — the ghost board
-        // should show the piece at its new position, not at the old one
         val movedPiece = ghost.predictedLine[0]
         assertNull(ghostBoard[movedPiece.from], "Piece should be gone from origin on ghost board")
         assertNotNull(ghostBoard[movedPiece.to], "Piece should be at destination on ghost board")
     }
 
     @Test
-    fun humanVsHumanGhostAcceptStillWorks() = runTest {
+    fun humanVsHumanGhostAcceptDoesNotApplyMoves() = runTest {
         val session = createSession(mode = GameMode.HUMAN_VS_HUMAN)
         session.makePlayerMove(Move(Square(4, 1), Square(4, 3))) // e2-e4
         session.requestGhostPreview()
@@ -219,6 +222,8 @@ class GhostAcceptRegressionTest {
 
         val historyBefore = session.getGameState().moveHistory.size
         session.acceptGhostLine()
-        assertEquals(historyBefore + 2, session.getGameState().moveHistory.size)
+        // Accept dismisses preview without changing game state
+        assertEquals(historyBefore, session.getGameState().moveHistory.size)
+        assertFalse(session.getGhostState().isActive)
     }
 }
