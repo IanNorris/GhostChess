@@ -65,6 +65,7 @@ fun ChessBoard(
     // Track the move we're animating so we can detect new steps
     var animKey by remember { mutableStateOf(0) }
     var animating by remember { mutableStateOf(false) }
+    var fadeOutActive by remember { mutableStateOf(false) }
     var prevAnimMove by remember { mutableStateOf<Move?>(null) }
 
     // Detect new ghost step
@@ -73,6 +74,7 @@ fun ChessBoard(
             prevAnimMove = animMove
             animKey++
             animating = true
+            fadeOutActive = false
         }
     }
 
@@ -118,11 +120,22 @@ fun ChessBoard(
                         val ghostPiece = if (ghostActive) ghostBoard!![square] else null
                         val isGhostDiff = ghostActive && ghostPiece != piece
 
-                        // During animation: hide the moving piece at its destination
-                        // (it's drawn by the floating overlay instead)
-                        val hideForAnim = animating && ghostActive && square == animToSquare
+                        // During animation: show the pre-move board so captured pieces
+                        // remain visible until the moving piece lands on them.
+                        // The moving piece itself is hidden here (drawn by the overlay).
+                        // During fade-out: hide on-board piece at destination (overlay handles it).
+                        val isAnimOrFade = animating || fadeOutActive
                         val displayPiece = when {
-                            hideForAnim -> null
+                            isAnimOrFade && ghostActive && square == animFromSquare ->
+                                null // Moving piece is drawn by overlay
+                            isAnimOrFade && ghostActive && square == animToSquare ->
+                                if (animating) {
+                                    // Show captured piece on-board during movement
+                                    boardBeforeStep?.get(square)
+                                } else {
+                                    // During fade-out, overlay handles the captured piece
+                                    ghostPiece // Show the landing piece (the one that moved here)
+                                }
                             ghostActive -> ghostPiece
                             else -> piece
                         }
@@ -194,16 +207,21 @@ fun ChessBoard(
             }
         }
 
-        // Floating animated piece overlay
-        if (animating && animMove != null && boardBeforeStep != null) {
+        // Floating animated piece overlay + captured piece fade-out
+        if ((animating || fadeOutActive) && animMove != null && boardBeforeStep != null) {
             val movingPiece = boardBeforeStep[animMove.from]
+            val capturedPiece = boardBeforeStep[animMove.to]
+
             if (movingPiece != null) {
                 val waypoints = animationWaypoints(animMove, movingPiece.type)
 
                 // Animate progress from 0f to 1f
                 val progress = remember(animKey) { Animatable(0f) }
+                val captureAlpha = remember(animKey) { Animatable(1f) }
+
                 LaunchedEffect(animKey) {
                     progress.snapTo(0f)
+                    captureAlpha.snapTo(1f)
                     progress.animateTo(
                         1f,
                         animationSpec = tween(
@@ -212,53 +230,93 @@ fun ChessBoard(
                         )
                     )
                     animating = false
+                    // After landing, fade out captured piece
+                    if (capturedPiece != null) {
+                        fadeOutActive = true
+                        captureAlpha.animateTo(
+                            0f,
+                            animationSpec = tween(durationMillis = 300, easing = LinearEasing)
+                        )
+                        fadeOutActive = false
+                    }
                 }
 
-                // Interpolate position along waypoints
-                val totalSegments = waypoints.size - 1
-                val rawSegment = progress.value * totalSegments
-                val segIndex = rawSegment.toInt().coerceIn(0, totalSegments - 1)
-                val segProgress = (rawSegment - segIndex).coerceIn(0f, 1f)
+                if (animating) {
+                    // Interpolate position along waypoints
+                    val totalSegments = waypoints.size - 1
+                    val rawSegment = progress.value * totalSegments
+                    val segIndex = rawSegment.toInt().coerceIn(0, totalSegments - 1)
+                    val segProgress = (rawSegment - segIndex).coerceIn(0f, 1f)
 
-                val startFile = waypoints[segIndex].first.toFloat()
-                val startRank = waypoints[segIndex].second.toFloat()
-                val endFile = waypoints[segIndex + 1].first.toFloat()
-                val endRank = waypoints[segIndex + 1].second.toFloat()
+                    val startFile = waypoints[segIndex].first.toFloat()
+                    val startRank = waypoints[segIndex].second.toFloat()
+                    val endFile = waypoints[segIndex + 1].first.toFloat()
+                    val endRank = waypoints[segIndex + 1].second.toFloat()
 
-                val currentFile = startFile + (endFile - startFile) * segProgress
-                val currentRank = startRank + (endRank - startRank) * segProgress
+                    val currentFile = startFile + (endFile - startFile) * segProgress
+                    val currentRank = startRank + (endRank - startRank) * segProgress
 
-                // Convert to display coordinates
-                val displayFile = if (flipped) 7f - currentFile else currentFile
-                val displayRankPos = if (flipped) currentRank else 7f - currentRank
+                    val displayFilePos = if (flipped) 7f - currentFile else currentFile
+                    val displayRankPos = if (flipped) currentRank else 7f - currentRank
 
-                val squareSizePx = with(androidx.compose.ui.platform.LocalDensity.current) { squareSize.toPx() }
-                val labelWidthPx = with(androidx.compose.ui.platform.LocalDensity.current) { labelWidth.toPx() }
+                    val squareSizePx = with(androidx.compose.ui.platform.LocalDensity.current) { squareSize.toPx() }
+                    val labelWidthPx = with(androidx.compose.ui.platform.LocalDensity.current) { labelWidth.toPx() }
 
-                val offsetX = labelWidthPx + displayFile * squareSizePx
-                val offsetY = displayRankPos * squareSizePx
+                    val offsetX = labelWidthPx + displayFilePos * squareSizePx
+                    val offsetY = displayRankPos * squareSizePx
 
-                // Scale: lift up (1.0→1.35) at start, set down (1.35→1.0) at end
-                val liftScale = when {
-                    progress.value < 0.15f -> 1f + 0.35f * (progress.value / 0.15f)
-                    progress.value > 0.85f -> 1f + 0.35f * ((1f - progress.value) / 0.15f)
-                    else -> 1.35f
+                    // Scale: lift up (1.0→1.35) at start, set down (1.35→1.0) at end
+                    val liftScale = when {
+                        progress.value < 0.15f -> 1f + 0.35f * (progress.value / 0.15f)
+                        progress.value > 0.85f -> 1f + 0.35f * ((1f - progress.value) / 0.15f)
+                        else -> 1.35f
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .offset { IntOffset(offsetX.toInt(), offsetY.toInt()) }
+                            .size(squareSize)
+                            .zIndex(10f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = PieceUnicode.get(movingPiece.type, movingPiece.color),
+                            fontSize = PIECE_FONT_SIZE.sp,
+                            textAlign = TextAlign.Center,
+                            color = ChessColors.GhostPiece,
+                            modifier = Modifier.scale(liftScale)
+                        )
+                    }
                 }
 
-                Box(
-                    modifier = Modifier
-                        .offset { IntOffset(offsetX.toInt(), offsetY.toInt()) }
-                        .size(squareSize)
-                        .zIndex(10f),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = PieceUnicode.get(movingPiece.type, movingPiece.color),
-                        fontSize = PIECE_FONT_SIZE.sp,
-                        textAlign = TextAlign.Center,
-                        color = ChessColors.GhostPiece,
-                        modifier = Modifier.scale(liftScale)
-                    )
+                // Fade-out overlay for captured piece after landing
+                if (fadeOutActive && capturedPiece != null) {
+                    val toFile = animMove.to.file
+                    val toRank = animMove.to.rank
+                    val dispFile = if (flipped) 7 - toFile else toFile
+                    val dispRank = if (flipped) toRank else 7 - toRank
+
+                    val squareSizePx = with(androidx.compose.ui.platform.LocalDensity.current) { squareSize.toPx() }
+                    val labelWidthPx = with(androidx.compose.ui.platform.LocalDensity.current) { labelWidth.toPx() }
+
+                    val ox = labelWidthPx + dispFile.toFloat() * squareSizePx
+                    val oy = dispRank.toFloat() * squareSizePx
+
+                    Box(
+                        modifier = Modifier
+                            .offset { IntOffset(ox.toInt(), oy.toInt()) }
+                            .size(squareSize)
+                            .zIndex(5f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = PieceUnicode.get(capturedPiece.type, capturedPiece.color),
+                            fontSize = PIECE_FONT_SIZE.sp,
+                            textAlign = TextAlign.Center,
+                            color = ChessColors.GhostPiece.copy(alpha = captureAlpha.value),
+                            modifier = Modifier.scale(1f)
+                        )
+                    }
                 }
             }
         }
