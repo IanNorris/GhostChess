@@ -48,13 +48,18 @@ class GemmaBanterEngine(
             Log.d(TAG, "initialize: model not ready, status=${modelManager.status.value}")
             return
         }
+        // Fast check before acquiring mutex
+        if (llmInference != null) {
+            Log.d(TAG, "initialize: already initialized (fast check), skipping")
+            return
+        }
         appContext = context.applicationContext
         logFile = java.io.File(context.filesDir, "gemma_log.txt")
         llmMutex.withLock {
-            // Skip if already initialized (prevents double-create crash)
+            // Double-check after acquiring lock
             if (llmInference != null) {
-                log("initialize: already initialized, skipping")
-                return
+                log("initialize: already initialized (lock check), skipping")
+                return@withLock
             }
             log("initialize: creating LlmInference...")
             withContext(Dispatchers.IO) {
@@ -86,39 +91,13 @@ class GemmaBanterEngine(
     override suspend fun reset() {
         log("reset: clearing ${conversationHistory.size} turns")
         conversationHistory.clear()
-        val ctx = appContext ?: run {
-            log("reset: no appContext")
-            return
-        }
-        // Acquire mutex — waits for any in-flight native call to finish first
-        llmMutex.withLock {
-            try {
-                llmInference?.close()
-                log("reset: closed old LlmInference")
-            } catch (e: Exception) {
-                log("reset error closing: ${e.message}")
-            }
-            llmInference = null
-            // Re-create inside the lock
-            withContext(Dispatchers.IO) {
-                try {
-                    val options = LlmInference.LlmInferenceOptions.builder()
-                        .setModelPath(modelManager.modelPath)
-                        .setMaxTokens(4096)
-                        .build()
-                    llmInference = LlmInference.createFromOptions(ctx, options)
-                    log("reset: new LlmInference created")
-                } catch (e: Exception) {
-                    log("reset: failed to recreate: ${e.message}")
-                    llmInference = null
-                }
-            }
-        }
+        // Just clear conversation history — keep LLM instance alive
     }
 
     suspend fun resetSession(context: android.content.Context) {
         appContext = context.applicationContext
-        reset()
+        conversationHistory.clear()
+        log("resetSession: history cleared")
     }
 
     override suspend fun generateBanter(context: GameContext): String? {

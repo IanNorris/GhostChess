@@ -138,6 +138,7 @@ fun GemmaBanterSettings(
         if (status == ModelStatus.NOT_DOWNLOADED) {
             modelManager.extractModel()
         }
+        // initialize() is idempotent — skips if already created by onCreate
         if (modelManager.status.value == ModelStatus.READY) {
             banterEngine.initialize(context)
         }
