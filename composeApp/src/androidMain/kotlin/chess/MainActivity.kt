@@ -107,8 +107,18 @@ fun GemmaBanterSettings(
 ) {
     val scope = rememberCoroutineScope()
     val status by modelManager.status.collectAsState()
-    val progress by modelManager.downloadProgress.collectAsState()
+    val progress by modelManager.extractProgress.collectAsState()
     val error by modelManager.errorMessage.collectAsState()
+
+    // Auto-extract model from bundled assets on first launch
+    LaunchedEffect(Unit) {
+        if (status == ModelStatus.NOT_DOWNLOADED) {
+            modelManager.extractModel()
+            if (modelManager.status.value == ModelStatus.READY) {
+                banterEngine.initialize(context)
+            }
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -121,7 +131,7 @@ fun GemmaBanterSettings(
         Text("🤖 AI Commentary", color = ChessColors.OnSurface, fontSize = 16.sp)
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-            "Uses Gemma 3 270M on-device for witty banter",
+            "Uses Gemma 3 1B on-device for witty banter",
             color = ChessColors.OnSurface.copy(alpha = 0.7f),
             fontSize = 12.sp
         )
@@ -132,24 +142,24 @@ fun GemmaBanterSettings(
                 Button(
                     onClick = {
                         scope.launch {
-                            modelManager.downloadModel()
+                            modelManager.extractModel()
                             if (modelManager.status.value == ModelStatus.READY) {
                                 banterEngine.initialize(context)
                             }
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = ChessColors.Primary),
-                    modifier = Modifier.testTag("download-ai-btn")
+                    modifier = Modifier.testTag("setup-ai-btn")
                 ) {
-                    Text("Download AI Model (~270MB)")
+                    Text("Set Up AI Model")
                 }
             }
-            ModelStatus.DOWNLOADING -> {
-                Text("Downloading...", color = ChessColors.Accent, fontSize = 14.sp)
+            ModelStatus.EXTRACTING -> {
+                Text("Setting up AI model...", color = ChessColors.Accent, fontSize = 14.sp)
                 Spacer(modifier = Modifier.height(4.dp))
                 LinearProgressIndicator(
                     progress = { progress },
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).testTag("download-progress"),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).testTag("extract-progress"),
                     color = ChessColors.Primary
                 )
                 Text(
@@ -172,12 +182,17 @@ fun GemmaBanterSettings(
                 }
             }
             ModelStatus.ERROR -> {
-                Text("❌ ${error ?: "Download failed"}", color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                Text(
+                    "❌ ${error ?: "Setup failed"}",
+                    color = MaterialTheme.colorScheme.error,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(horizontal = 8.dp)
+                )
                 Spacer(modifier = Modifier.height(4.dp))
                 Button(
                     onClick = {
                         scope.launch {
-                            modelManager.downloadModel()
+                            modelManager.extractModel()
                             if (modelManager.status.value == ModelStatus.READY) {
                                 banterEngine.initialize(context)
                             }
@@ -185,7 +200,7 @@ fun GemmaBanterSettings(
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = ChessColors.Primary)
                 ) {
-                    Text("Retry Download")
+                    Text("Retry Setup")
                 }
             }
         }
