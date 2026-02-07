@@ -22,6 +22,7 @@ import chess.game.GameSession
 import chess.ghost.GhostPreviewMode
 import chess.ghost.GhostPreviewState
 import chess.speech.GameCommentator
+import chess.speech.BanterGenerator
 import chess.speech.NoOpSpeechEngine
 import chess.speech.SpeechEngine
 import chess.ui.board.ChessBoard
@@ -42,7 +43,12 @@ class NoOpSettingsStore : SettingsStore {
 }
 
 @Composable
-fun App(speechEngine: SpeechEngine = NoOpSpeechEngine(), settingsStore: SettingsStore = NoOpSettingsStore()) {
+fun App(
+    speechEngine: SpeechEngine = NoOpSpeechEngine(),
+    settingsStore: SettingsStore = NoOpSettingsStore(),
+    banterGenerator: BanterGenerator? = null,
+    banterSettingsContent: (@Composable () -> Unit)? = null
+) {
     var screen by remember { mutableStateOf<Screen>(Screen.Menu) }
 
     MaterialTheme {
@@ -56,11 +62,13 @@ fun App(speechEngine: SpeechEngine = NoOpSpeechEngine(), settingsStore: Settings
                 is Screen.Menu -> MenuScreen(
                     onStartGame = { config -> screen = Screen.Game(config) },
                     speechEngine = speechEngine,
-                    settingsStore = settingsStore
+                    settingsStore = settingsStore,
+                    banterSettingsContent = banterSettingsContent
                 )
                 is Screen.Game -> GameScreen(
                     config = current.config,
                     speechEngine = speechEngine,
+                    banterGenerator = banterGenerator,
                     onBack = { screen = Screen.Menu }
                 )
             }
@@ -74,7 +82,7 @@ sealed class Screen {
 }
 
 @Composable
-fun MenuScreen(onStartGame: (GameConfig) -> Unit, speechEngine: SpeechEngine = NoOpSpeechEngine(), settingsStore: SettingsStore = NoOpSettingsStore()) {
+fun MenuScreen(onStartGame: (GameConfig) -> Unit, speechEngine: SpeechEngine = NoOpSpeechEngine(), settingsStore: SettingsStore = NoOpSettingsStore(), banterSettingsContent: (@Composable () -> Unit)? = null) {
     var selectedMode by remember {
         mutableStateOf(
             settingsStore.getString("mode")?.let {
@@ -223,6 +231,12 @@ fun MenuScreen(onStartGame: (GameConfig) -> Unit, speechEngine: SpeechEngine = N
             )
         }
 
+        // AI Commentary (platform-specific content, if available)
+        if (banterSettingsContent != null) {
+            Spacer(modifier = Modifier.height(16.dp))
+            banterSettingsContent()
+        }
+
         Spacer(modifier = Modifier.height(32.dp))
 
         Button(
@@ -247,11 +261,11 @@ fun MenuScreen(onStartGame: (GameConfig) -> Unit, speechEngine: SpeechEngine = N
 }
 
 @Composable
-fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine(), onBack: () -> Unit) {
+fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine(), banterGenerator: BanterGenerator? = null, onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
     val engine = remember { SimpleEngine() }
     val session = remember { GameSession(engine, config) }
-    val commentator = remember { GameCommentator(speechEngine, playerColor = config.playerColor) }
+    val commentator = remember { GameCommentator(speechEngine, playerColor = config.playerColor, banterGenerator = banterGenerator) }
 
     var gameState by remember { mutableStateOf(session.getGameState()) }
     var ghostState by remember { mutableStateOf(session.getGhostState()) }

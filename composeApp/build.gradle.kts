@@ -31,6 +31,7 @@ kotlin {
             implementation(compose.preview)
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.androidx.activity.compose)
+            implementation("com.google.mediapipe:tasks-genai:0.10.27")
         }
     }
 }
