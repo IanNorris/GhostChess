@@ -4,6 +4,8 @@ import chess.core.*
 import chess.engine.ChessEngine
 import chess.ghost.GhostPreviewManager
 import chess.ghost.GhostPreviewState
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 enum class GameMode {
     HUMAN_VS_ENGINE,
@@ -60,7 +62,9 @@ class GameSession(
             Difficulty.MEDIUM -> 1
             Difficulty.HARD -> 2
         }
-        val analysis = engine.getBestLine(gameState.toFen(), searchDepth)
+        val analysis = withContext(Dispatchers.Default) {
+            engine.getBestLine(gameState.toFen(), searchDepth)
+        }
         if (analysis.bestLine.isNotEmpty()) {
             gameState = gameState.makeMove(analysis.bestLine.first())
         }

@@ -26,6 +26,8 @@ import chess.speech.SpeechEngine
 import chess.ui.game.App
 import chess.ui.game.SettingsStore
 import chess.ui.theme.ChessColors
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.util.Locale
 
@@ -75,9 +77,11 @@ class MainActivity : ComponentActivity() {
         val modelManager = GemmaModelManager(this)
         banterEngine = GemmaBanterEngine(modelManager)
 
-        // Initialize if model already downloaded
+        // Initialize LLM off the main thread to avoid blocking UI
         if (modelManager.status.value == ModelStatus.READY) {
-            banterEngine?.initialize(this)
+            CoroutineScope(Dispatchers.IO).launch {
+                banterEngine?.initialize(this@MainActivity)
+            }
         }
 
         setContent {
@@ -114,9 +118,9 @@ fun GemmaBanterSettings(
     LaunchedEffect(Unit) {
         if (status == ModelStatus.NOT_DOWNLOADED) {
             modelManager.extractModel()
-            if (modelManager.status.value == ModelStatus.READY) {
-                banterEngine.initialize(context)
-            }
+        }
+        if (modelManager.status.value == ModelStatus.READY) {
+            banterEngine.initialize(context)
         }
     }
 

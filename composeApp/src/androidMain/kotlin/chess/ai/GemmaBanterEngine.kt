@@ -9,7 +9,10 @@ import chess.speech.GameEvent
 import chess.speech.TemplateBanterGenerator
 import com.google.mediapipe.tasks.genai.llminference.LlmInference
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Generates witty chess banter using Gemma 3 270M via MediaPipe LLM Inference.
@@ -21,23 +24,27 @@ class GemmaBanterEngine(
 ) : BanterGenerator {
 
     private var llmInference: LlmInference? = null
+    private val inferenceMutex = Mutex()
 
     override val isReady: Boolean
         get() = modelManager.status.value == ModelStatus.READY
 
     /**
      * Initialize the LLM inference engine. Call after model is downloaded.
+     * Safe to call from any thread.
      */
-    fun initialize(context: android.content.Context) {
+    suspend fun initialize(context: android.content.Context) {
         if (modelManager.status.value != ModelStatus.READY) return
-        try {
-            val options = LlmInference.LlmInferenceOptions.builder()
-                .setModelPath(modelManager.modelPath)
-                .setMaxTokens(128)
-                .build()
-            llmInference = LlmInference.createFromOptions(context, options)
-        } catch (e: Exception) {
-            llmInference = null
+        withContext(Dispatchers.IO) {
+            try {
+                val options = LlmInference.LlmInferenceOptions.builder()
+                    .setModelPath(modelManager.modelPath)
+                    .setMaxTokens(128)
+                    .build()
+                llmInference = LlmInference.createFromOptions(context, options)
+            } catch (e: Exception) {
+                llmInference = null
+            }
         }
     }
 
@@ -49,18 +56,27 @@ class GemmaBanterEngine(
     override suspend fun generateBanter(context: GameContext): String? {
         val llm = llmInference ?: return fallback.generateBanter(context)
 
+        // Prevent concurrent LLM calls — skip if already generating
+        if (!inferenceMutex.tryLock()) return fallback.generateBanter(context)
+
         val prompt = buildPrompt(context)
-        return withContext(Dispatchers.IO) {
-            try {
-                val response = llm.generateResponse(prompt)
-                val cleaned = response?.trim()
-                    ?.removePrefix("\"")?.removeSuffix("\"")
-                    ?.take(200)
-                if (cleaned.isNullOrBlank()) fallback.generateBanter(context)
-                else cleaned
-            } catch (e: Exception) {
-                fallback.generateBanter(context)
+        return try {
+            withContext(Dispatchers.IO) {
+                withTimeoutOrNull(10_000L) {
+                    try {
+                        val response = llm.generateResponse(prompt)
+                        val cleaned = response?.trim()
+                            ?.removePrefix("\"")?.removeSuffix("\"")
+                            ?.take(200)
+                        if (cleaned.isNullOrBlank()) fallback.generateBanter(context)
+                        else cleaned
+                    } catch (e: Exception) {
+                        fallback.generateBanter(context)
+                    }
+                } ?: fallback.generateBanter(context)
             }
+        } finally {
+            inferenceMutex.unlock()
         }
     }
 
