@@ -27,10 +27,12 @@ data class GhostPreviewState(
     val predictedLine: List<Move> = emptyList(),
     val currentStepIndex: Int = -1,
     val boardAtStep: Board? = null,
+    val boardBeforeStep: Board? = null,
+    val animatingMove: Move? = null,
     val analysis: EngineAnalysis? = null,
     val thinking: EngineThought? = null,
     val showThinking: Boolean = false,
-    val autoPlaySpeedMs: Long = 1000
+    val autoPlaySpeedMs: Long = 1500
 ) {
     val isActive: Boolean get() = status != GhostPreviewStatus.IDLE
     val canStepForward: Boolean get() = currentStepIndex < predictedLine.size - 1
@@ -82,11 +84,14 @@ class GhostPreviewManager(
 
         val nextIndex = state.currentStepIndex + 1
         val move = state.predictedLine[nextIndex]
-        val newBoard = state.boardAtStep!!.makeMove(move)
+        val boardBefore = state.boardAtStep!!
+        val newBoard = boardBefore.makeMove(move)
 
         state = state.copy(
             currentStepIndex = nextIndex,
+            boardBeforeStep = boardBefore,
             boardAtStep = newBoard,
+            animatingMove = move,
             status = if (nextIndex >= state.predictedLine.size - 1) GhostPreviewStatus.COMPLETE
             else state.status
         )
