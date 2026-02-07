@@ -9,3 +9,5 @@ e2e/playwright-report/
 /tmp/
 # Large AI model files - bundled in assets but not committed
 *.task
+# Built APK files
+*.apk
