@@ -27,15 +27,15 @@ class GameCommentator(
     }
 
     fun onGhostPreviewStart() {
-        speak(listOf(GameEvent.GhostPreviewStarted))
+        // Intentionally silent — ghost preview speech was interrupting gameplay
     }
 
     fun onGhostAccepted() {
-        speak(listOf(GameEvent.GhostAccepted))
+        // Intentionally silent
     }
 
     fun onGhostDismissed() {
-        speak(listOf(GameEvent.GhostDismissed))
+        // Intentionally silent
     }
 
     fun onMoveUndone() {

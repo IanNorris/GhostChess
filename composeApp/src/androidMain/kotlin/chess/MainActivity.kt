@@ -30,7 +30,7 @@ class AndroidSpeechEngine(private val activity: ComponentActivity) : SpeechEngin
 
     override fun speak(text: String) {
         if (!enabled || !ready) return
-        tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "chess_${System.currentTimeMillis()}")
+        tts?.speak(text, TextToSpeech.QUEUE_ADD, null, "chess_${System.currentTimeMillis()}")
     }
 
     override fun stop() {

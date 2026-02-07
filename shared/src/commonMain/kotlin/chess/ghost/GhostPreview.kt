@@ -4,6 +4,8 @@ import chess.core.*
 import chess.engine.ChessEngine
 import chess.engine.EngineAnalysis
 import chess.engine.EngineThought
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 enum class GhostPreviewMode {
     AUTO_PLAY,
@@ -54,8 +56,12 @@ class GhostPreviewManager(
             showThinking = showThinking
         )
 
-        val analysis = engine.getBestLine(board.toFen(), depth)
-        val thinking = if (showThinking) engine.getThinking(board.toFen(), depth) else null
+        val analysis = withContext(Dispatchers.Default) {
+            engine.getBestLine(board.toFen(), depth)
+        }
+        val thinking = if (showThinking) withContext(Dispatchers.Default) {
+            engine.getThinking(board.toFen(), depth)
+        } else null
 
         state = state.copy(
             status = if (state.mode == GhostPreviewMode.AUTO_PLAY) GhostPreviewStatus.PLAYING
