@@ -185,6 +185,14 @@ fun setupMenu() {
         try {
             autoPlayJob?.cancel()
             s.undoMove()
+            // In vs-computer mode, also undo the computer's move
+            // so the player returns to their last decision point
+            if (s.config.mode == GameMode.HUMAN_VS_ENGINE &&
+                s.getGameState().moveHistory.isNotEmpty() &&
+                !s.isPlayerTurn()
+            ) {
+                s.undoMove()
+            }
             selectedSquare = null
             legalMovesForSelected = emptyList()
             resetMoveTimer()

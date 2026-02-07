@@ -85,7 +85,7 @@ fun MenuScreen(onStartGame: (GameConfig) -> Unit) {
             FilterChip(
                 selected = selectedMode == GameMode.HUMAN_VS_ENGINE,
                 onClick = { selectedMode = GameMode.HUMAN_VS_ENGINE },
-                label = { Text("vs Engine") },
+                label = { Text("vs Computer") },
                 modifier = Modifier.testTag("mode-vs-engine")
             )
             FilterChip(
@@ -153,7 +153,7 @@ fun MenuScreen(onStartGame: (GameConfig) -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.testTag("thinking-toggle-row")
         ) {
-            Text("Show engine thinking", color = ChessColors.OnSurface, fontSize = 14.sp)
+            Text("Show computer thinking", color = ChessColors.OnSurface, fontSize = 14.sp)
             Spacer(modifier = Modifier.width(8.dp))
             Switch(
                 checked = showThinking,
@@ -279,7 +279,7 @@ fun GameScreen(config: GameConfig, onBack: () -> Unit) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(start = 8.dp, end = 8.dp, bottom = 8.dp, top = 36.dp)
+                .padding(start = 8.dp, end = 8.dp, bottom = 8.dp, top = 52.dp)
                 .testTag("game-screen"),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -324,6 +324,13 @@ fun GameScreen(config: GameConfig, onBack: () -> Unit) {
                 OutlinedButton(
                     onClick = {
                         session.undoMove()
+                        // In vs-computer mode, also undo the computer's move
+                        if (config.mode == GameMode.HUMAN_VS_ENGINE &&
+                            session.getGameState().moveHistory.isNotEmpty() &&
+                            !session.isPlayerTurn()
+                        ) {
+                            session.undoMove()
+                        }
                         gameState = session.getGameState()
                         ghostState = session.getGhostState()
                         selectedSquare = null

@@ -171,7 +171,7 @@ fun EngineThinkingPanel(
             .testTag("engine-thinking-panel")
     ) {
         Text(
-            text = "🧠 Engine Thinking",
+            text = "🧠 Computer Thinking",
             color = ChessColors.Accent,
             fontSize = 14.sp,
             modifier = Modifier.testTag("thinking-title")
