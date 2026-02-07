@@ -1,6 +1,7 @@
 package chess
 
 import android.content.Context
+import android.content.Intent
 import android.content.SharedPreferences
 import android.os.Bundle
 import android.speech.tts.TextToSpeech
@@ -13,9 +14,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.FileProvider
 import chess.ai.GemmaBanterEngine
 import chess.ai.GemmaModelManager
 import chess.ai.ModelStatus
@@ -201,44 +204,44 @@ fun GemmaBanterSettings(
                     Text("Delete Model", color = ChessColors.OnSurface, fontSize = 12.sp)
                 }
 
-                // Diagnostics log viewer
-                var logContents by remember { mutableStateOf<String?>(null) }
+                // Diagnostics
                 Spacer(modifier = Modifier.height(8.dp))
-                OutlinedButton(
-                    onClick = {
-                        val gemmaLog = java.io.File(context.filesDir, "gemma_log.txt")
-                        val crashLog = java.io.File(context.filesDir, "crash_log.txt")
-                        val sb = StringBuilder()
-                        if (crashLog.exists()) {
-                            sb.appendLine("=== CRASH LOG ===")
-                            sb.appendLine(crashLog.readText().takeLast(1000))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = {
+                            // Merge logs and share via Android share sheet
+                            val merged = java.io.File(context.filesDir, "merged_log.txt")
+                            val sb = StringBuilder()
+                            val crashLog = java.io.File(context.filesDir, "crash_log.txt")
+                            val gemmaLog = java.io.File(context.filesDir, "gemma_log.txt")
+                            if (crashLog.exists()) {
+                                sb.appendLine("=== CRASH LOG ===")
+                                sb.appendLine(crashLog.readText())
+                            }
+                            if (gemmaLog.exists()) {
+                                sb.appendLine("=== GEMMA LOG ===")
+                                sb.appendLine(gemmaLog.readText())
+                            }
+                            if (sb.isEmpty()) sb.appendLine("No logs found")
+                            merged.writeText(sb.toString())
+                            val intent = Intent(Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(Intent.EXTRA_TEXT, sb.toString().takeLast(4000))
+                                putExtra(Intent.EXTRA_SUBJECT, "GhostChess Logs")
+                            }
+                            context.startActivity(Intent.createChooser(intent, "Share Logs"))
                         }
-                        if (gemmaLog.exists()) {
-                            sb.appendLine("=== GEMMA LOG (last 1000 chars) ===")
-                            sb.appendLine(gemmaLog.readText().takeLast(1000))
-                        }
-                        logContents = if (sb.isEmpty()) "No logs found" else sb.toString()
+                    ) {
+                        Text("📤 Share Logs", color = ChessColors.OnSurface, fontSize = 12.sp)
                     }
-                ) {
-                    Text("View Logs", color = ChessColors.OnSurface, fontSize = 12.sp)
-                }
-                logContents?.let { log ->
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        log,
-                        color = ChessColors.OnSurface.copy(alpha = 0.6f),
-                        fontSize = 10.sp,
-                        maxLines = 40,
-                        modifier = Modifier.padding(4.dp)
-                    )
                     OutlinedButton(
                         onClick = {
                             java.io.File(context.filesDir, "crash_log.txt").delete()
                             java.io.File(context.filesDir, "gemma_log.txt").delete()
-                            logContents = "Logs cleared"
+                            java.io.File(context.filesDir, "merged_log.txt").delete()
                         }
                     ) {
-                        Text("Clear Logs", color = ChessColors.OnSurface, fontSize = 12.sp)
+                        Text("🗑 Clear Logs", color = ChessColors.OnSurface, fontSize = 12.sp)
                     }
                 }
             }

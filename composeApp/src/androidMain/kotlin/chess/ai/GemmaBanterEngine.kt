@@ -2,7 +2,6 @@ package chess.ai
 
 import android.util.Log
 import chess.core.Board
-import chess.core.Move
 import chess.core.PieceColor
 import chess.speech.BanterGenerator
 import chess.speech.GameContext
@@ -10,21 +9,16 @@ import chess.speech.GameEvent
 import chess.speech.TemplateBanterGenerator
 import com.google.mediapipe.tasks.genai.llminference.LlmInference
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.channels.Channel.Factory.CONFLATED
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 /**
  * Generates helpful chess commentary using Gemma 3 1B via MediaPipe LLM Inference.
- * 
- * IMPORTANT: MediaPipe's native LLM runtime crashes (SIGSEGV) if generateResponse
- * is called concurrently or interrupted mid-call. All inference is therefore fully
- * serialized through a single worker coroutine, and native calls are never cancelled.
+ *
+ * All access to the native LlmInference is serialized through [llmMutex].
+ * The native generateResponse call is blocking and must never be interrupted or
+ * called concurrently — doing so causes a native SIGSEGV.
  */
 class GemmaBanterEngine(
     private val modelManager: GemmaModelManager,
@@ -37,6 +31,7 @@ class GemmaBanterEngine(
 
     @Volatile
     private var llmInference: LlmInference? = null
+    // Guards ALL access to llmInference (create, close, generateResponse)
     private val llmMutex = Mutex()
     private var appContext: android.content.Context? = null
     private var logFile: java.io.File? = null
@@ -44,29 +39,6 @@ class GemmaBanterEngine(
     private val conversationHistory = java.util.concurrent.CopyOnWriteArrayList<ConversationTurn>()
 
     private data class ConversationTurn(val role: String, val content: String)
-
-    // Serialized inference: requests go into a CONFLATED channel (only latest kept)
-    // Results come back through the callback
-    private data class InferenceRequest(
-        val context: GameContext,
-        val callback: (String?) -> Unit
-    )
-    private val requestChannel = Channel<InferenceRequest>(CONFLATED)
-    private val workerScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-
-    init {
-        // Single worker coroutine processes LLM requests one at a time
-        workerScope.launch {
-            for (request in requestChannel) {
-                val result = doGenerateBanter(request.context)
-                try {
-                    request.callback(result)
-                } catch (e: Exception) {
-                    log("Worker callback error: ${e.message}")
-                }
-            }
-        }
-    }
 
     override val isReady: Boolean
         get() = modelManager.status.value == ModelStatus.READY
@@ -79,17 +51,19 @@ class GemmaBanterEngine(
         appContext = context.applicationContext
         logFile = java.io.File(context.filesDir, "gemma_log.txt")
         log("initialize: creating LlmInference...")
-        withContext(Dispatchers.IO) {
-            try {
-                val options = LlmInference.LlmInferenceOptions.builder()
-                    .setModelPath(modelManager.modelPath)
-                    .setMaxTokens(256)
-                    .build()
-                llmInference = LlmInference.createFromOptions(context, options)
-                log("initialize: LlmInference created successfully")
-            } catch (e: Exception) {
-                log("initialize: FAILED - ${e.message}\n${e.stackTraceToString()}")
-                llmInference = null
+        llmMutex.withLock {
+            withContext(Dispatchers.IO) {
+                try {
+                    val options = LlmInference.LlmInferenceOptions.builder()
+                        .setModelPath(modelManager.modelPath)
+                        .setMaxTokens(256)
+                        .build()
+                    llmInference = LlmInference.createFromOptions(context, options)
+                    log("initialize: LlmInference created successfully")
+                } catch (e: Exception) {
+                    log("initialize: FAILED - ${e.message}\n${e.stackTraceToString()}")
+                    llmInference = null
+                }
             }
         }
     }
@@ -111,6 +85,7 @@ class GemmaBanterEngine(
             log("reset: no appContext")
             return
         }
+        // Acquire mutex — waits for any in-flight native call to finish first
         llmMutex.withLock {
             try {
                 llmInference?.close()
@@ -119,8 +94,21 @@ class GemmaBanterEngine(
                 log("reset error closing: ${e.message}")
             }
             llmInference = null
+            // Re-create inside the lock
+            withContext(Dispatchers.IO) {
+                try {
+                    val options = LlmInference.LlmInferenceOptions.builder()
+                        .setModelPath(modelManager.modelPath)
+                        .setMaxTokens(256)
+                        .build()
+                    llmInference = LlmInference.createFromOptions(ctx, options)
+                    log("reset: new LlmInference created")
+                } catch (e: Exception) {
+                    log("reset: failed to recreate: ${e.message}")
+                    llmInference = null
+                }
+            }
         }
-        initialize(ctx)
     }
 
     suspend fun resetSession(context: android.content.Context) {
@@ -128,75 +116,52 @@ class GemmaBanterEngine(
         reset()
     }
 
-    /**
-     * Queue a banter request. If the LLM is busy, the CONFLATED channel drops
-     * the previous pending request (only latest matters). The callback receives
-     * the result on the worker thread.
-     */
     override suspend fun generateBanter(context: GameContext): String? {
-        if (llmInference == null) {
+        // If mutex is held (by reset or another inference), skip to fallback immediately
+        if (!llmMutex.tryLock()) {
+            log("generateBanter: mutex held, using fallback")
             return fallback.generateBanter(context)
         }
 
-        // Use a CompletableDeferred to bridge the channel-based worker back to suspend
-        val deferred = kotlinx.coroutines.CompletableDeferred<String?>()
-        val request = InferenceRequest(context) { result -> deferred.complete(result) }
-
-        // trySend on CONFLATED channel always succeeds (replaces old if pending)
-        requestChannel.trySend(request)
-
-        return try {
-            // Wait for result, but if it takes too long, use fallback
-            kotlinx.coroutines.withTimeoutOrNull(20_000L) {
-                deferred.await()
-            } ?: run {
-                log("generateBanter: deferred timed out, using fallback")
-                fallback.generateBanter(context)
-            }
-        } catch (e: Exception) {
-            log("generateBanter: error waiting for result: ${e.message}")
-            fallback.generateBanter(context)
-        }
-    }
-
-    /**
-     * Actually run the LLM inference. Called only from the single worker coroutine.
-     * NEVER cancelled — the native call must complete.
-     */
-    private fun doGenerateBanter(context: GameContext): String? {
         val llm = llmInference
         if (llm == null) {
-            log("doGenerate: llm is null")
-            return null
+            llmMutex.unlock()
+            log("generateBanter: llm is null, using fallback")
+            return fallback.generateBanter(context)
         }
+
+        log("generateBanter: move ${context.moveNumber}, event=${context.event::class.simpleName}")
 
         return try {
             val userMessage = buildUserMessage(context)
             conversationHistory.add(ConversationTurn("user", userMessage))
-            log("doGenerate: move ${context.moveNumber}, history=${conversationHistory.size}")
+            log("generateBanter: history=${conversationHistory.size}, calling native...")
 
             val prompt = buildConversationPrompt()
-            log("doGenerate: prompt ${prompt.length} chars, calling generateResponse...")
 
-            // This is a blocking native call — must never be interrupted
-            val response = llm.generateResponse(prompt)
-            log("doGenerate: response received, length=${response?.length ?: 0}")
+            // Blocking native call on IO thread, mutex held the whole time
+            val response = withContext(Dispatchers.IO) {
+                llm.generateResponse(prompt)
+            }
+
+            log("generateBanter: response length=${response?.length ?: 0}")
 
             val cleaned = cleanResponse(response)
             if (cleaned.isNullOrBlank()) {
-                log("doGenerate: blank response, removing from history")
                 conversationHistory.removeLastOrNull()
-                null
+                fallback.generateBanter(context)
             } else {
-                log("doGenerate: success: \"${cleaned.take(60)}...\"")
+                log("generateBanter: \"${cleaned.take(60)}\"")
                 conversationHistory.add(ConversationTurn("assistant", cleaned))
                 trimHistory()
                 cleaned
             }
         } catch (e: Exception) {
-            log("doGenerate: EXCEPTION: ${e.message}\n${e.stackTraceToString()}")
+            log("generateBanter: EXCEPTION: ${e.message}\n${e.stackTraceToString()}")
             conversationHistory.removeLastOrNull()
-            null
+            fallback.generateBanter(context)
+        } finally {
+            llmMutex.unlock()
         }
     }
 
@@ -226,7 +191,6 @@ class GemmaBanterEngine(
         val sb = StringBuilder()
         sb.appendLine("You are a helpful chess coach providing brief spoken advice during a game. Give practical tips about the position, suggest ideas, or comment on what just happened. Keep each reply to 1-2 short sentences suitable for text-to-speech. Do not use chess notation — describe moves in plain English (e.g. \"knight to the center\" not \"Nf3\").")
         sb.appendLine()
-
         val history = conversationHistory.toList()
         for (turn in history) {
             when (turn.role) {
@@ -235,24 +199,18 @@ class GemmaBanterEngine(
             }
             sb.appendLine()
         }
-
         sb.append("Coach:")
         return sb.toString()
     }
 
     private fun buildUserMessage(context: GameContext): String {
         val parts = mutableListOf<String>()
-
         parts.add(describeMoveDetail(context))
-
         val eventDesc = describeEvent(context.event)
         if (eventDesc.isNotBlank()) parts.add(eventDesc)
-
         parts.add("Position (FEN): ${context.board.toFen()}")
         parts.add(describeMaterial(context.board, context.playerColor))
-
         context.engineCommentary?.let { parts.add("Engine analysis: $it") }
-
         return parts.joinToString(". ")
     }
 
@@ -268,7 +226,6 @@ class GemmaBanterEngine(
             is GameEvent.PieceCaptured -> if ((context.event as GameEvent.PieceCaptured).isPlayerCapture) "Player" else "Computer"
             else -> if (piece?.color == context.playerColor) "Player" else "Computer"
         }
-
         val base = "Move ${context.moveNumber}: $who moved $pieceName from ${move.from.toAlgebraic()} to ${move.to.toAlgebraic()}"
         val captureInfo = if (captured != null) ", capturing ${captured.type.name.lowercase()}" else ""
         val promoInfo = if (move.promotion != null) ", promoting to ${move.promotion!!.name.lowercase()}" else ""
