@@ -89,17 +89,23 @@ class GameCommentator(
         if (banter != null && banter.isReady && events.isNotEmpty()) {
             // Use AI commentary for the highest-priority event
             val primaryEvent = events.sortedBy { priorityOf(it) }.first()
+            // Snapshot state for the coroutine (avoid reading mutable fields later)
+            val boardSnapshot = currentBoard
+            val boardBeforeSnapshot = previousBoard
+            val moveSnapshot = lastMove
+            val moveNum = moveNumber
+
             scope.launch {
                 // Get engine analysis for the current position
                 val engineAnalysis = try {
-                    engine?.getThinking(currentBoard.toFen(), 3)
+                    engine?.getThinking(boardSnapshot.toFen(), 3)
                 } catch (_: Exception) { null }
 
                 val context = GameContext(
                     event = primaryEvent,
-                    board = currentBoard,
-                    boardBefore = previousBoard,
-                    lastMove = lastMove,
+                    board = boardSnapshot,
+                    boardBefore = boardBeforeSnapshot,
+                    lastMove = moveSnapshot,
                     playerColor = playerColor,
                     evaluation = engineAnalysis?.evaluation,
                     engineThinking = engineAnalysis?.description,
@@ -114,15 +120,20 @@ class GameCommentator(
                             }
                         }
                     },
-                    moveNumber = moveNumber
+                    moveNumber = moveNum
                 )
-                val text = banter.generateBanter(context)
-                if (text != null) {
-                    speechEngine.speak(text)
-                } else {
-                    // Fallback to template
-                    val fallbackText = commentary.generateCommentary(events) ?: return@launch
-                    speechEngine.speak(fallbackText)
+                try {
+                    val text = banter.generateBanter(context)
+                    if (text != null) {
+                        speechEngine.speak(text)
+                    } else {
+                        val fallbackText = commentary.generateCommentary(events) ?: return@launch
+                        speechEngine.speak(fallbackText)
+                    }
+                } catch (_: Exception) {
+                    // If banter generation crashes, fall back to template
+                    val fallbackText = commentary.generateCommentary(events)
+                    if (fallbackText != null) speechEngine.speak(fallbackText)
                 }
             }
         } else {

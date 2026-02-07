@@ -24,22 +24,19 @@ class GemmaBanterEngine(
     private val fallback: BanterGenerator = TemplateBanterGenerator()
 ) : BanterGenerator {
 
+    @Volatile
     private var llmInference: LlmInference? = null
     private val inferenceMutex = Mutex()
     private var appContext: android.content.Context? = null
 
-    // Conversation history: alternating user (move info) and assistant (model reply) messages
-    private val conversationHistory = mutableListOf<ConversationTurn>()
+    // Thread-safe conversation history
+    private val conversationHistory = java.util.concurrent.CopyOnWriteArrayList<ConversationTurn>()
 
     private data class ConversationTurn(val role: String, val content: String)
 
     override val isReady: Boolean
         get() = modelManager.status.value == ModelStatus.READY
 
-    /**
-     * Initialize the LLM inference engine. Call after model is downloaded.
-     * Safe to call from any thread.
-     */
     suspend fun initialize(context: android.content.Context) {
         if (modelManager.status.value != ModelStatus.READY) return
         appContext = context.applicationContext
@@ -61,15 +58,11 @@ class GemmaBanterEngine(
         llmInference = null
     }
 
-    /**
-     * Reset the LLM session to prevent context leaks between games.
-     * Destroys and recreates the inference instance, clears conversation history.
-     */
     override suspend fun reset() {
         conversationHistory.clear()
         val ctx = appContext ?: return
         inferenceMutex.withLock {
-            llmInference?.close()
+            try { llmInference?.close() } catch (_: Exception) {}
             llmInference = null
         }
         initialize(ctx)
@@ -83,17 +76,23 @@ class GemmaBanterEngine(
     override suspend fun generateBanter(context: GameContext): String? {
         val llm = llmInference ?: return fallback.generateBanter(context)
 
-        // Prevent concurrent LLM calls — skip if already generating
+        // Skip if already generating — don't block, just use fallback
         if (!inferenceMutex.tryLock()) return fallback.generateBanter(context)
 
-        val userMessage = buildUserMessage(context)
-        conversationHistory.add(ConversationTurn("user", userMessage))
-
-        val prompt = buildConversationPrompt()
         return try {
+            val userMessage = buildUserMessage(context)
+            conversationHistory.add(ConversationTurn("user", userMessage))
+
+            val prompt = buildConversationPrompt()
+
             withContext(Dispatchers.IO) {
                 withTimeoutOrNull(15_000L) {
                     try {
+                        // Re-check — may have been closed by reset() while we waited
+                        if (llmInference == null) {
+                            conversationHistory.removeLastOrNull()
+                            return@withTimeoutOrNull fallback.generateBanter(context)
+                        }
                         val response = llm.generateResponse(prompt)
                         val cleaned = cleanResponse(response)
                         if (cleaned.isNullOrBlank()) {
@@ -121,15 +120,14 @@ class GemmaBanterEngine(
     private fun cleanResponse(response: String?): String? {
         return response?.trim()
             ?.removePrefix("\"")?.removeSuffix("\"")
+            ?.removePrefix("Coach:")?.removePrefix("coach:")
             ?.removePrefix("Assistant:")?.removePrefix("assistant:")
             ?.trim()
             ?.take(300)
     }
 
-    /** Keep only the last N exchanges to avoid exceeding context window */
     private fun trimHistory() {
-        val maxTurns = 20
-        while (conversationHistory.size > maxTurns) {
+        while (conversationHistory.size > 20) {
             conversationHistory.removeAt(0)
         }
     }
@@ -139,7 +137,9 @@ class GemmaBanterEngine(
         sb.appendLine("You are a helpful chess coach providing brief spoken advice during a game. Give practical tips about the position, suggest ideas, or comment on what just happened. Keep each reply to 1-2 short sentences suitable for text-to-speech. Do not use chess notation — describe moves in plain English (e.g. \"knight to the center\" not \"Nf3\").")
         sb.appendLine()
 
-        for (turn in conversationHistory) {
+        // Take a snapshot to avoid concurrent modification during iteration
+        val history = conversationHistory.toList()
+        for (turn in history) {
             when (turn.role) {
                 "user" -> sb.appendLine("Move update: ${turn.content}")
                 "assistant" -> sb.appendLine("Coach: ${turn.content}")
@@ -154,20 +154,14 @@ class GemmaBanterEngine(
     private fun buildUserMessage(context: GameContext): String {
         val parts = mutableListOf<String>()
 
-        // Move description
         parts.add(describeMoveDetail(context))
 
-        // Event (captures, checks, etc.)
         val eventDesc = describeEvent(context.event)
         if (eventDesc.isNotBlank()) parts.add(eventDesc)
 
-        // Board state
         parts.add("Position (FEN): ${context.board.toFen()}")
-
-        // Material balance
         parts.add(describeMaterial(context.board, context.playerColor))
 
-        // Engine analysis
         context.engineCommentary?.let { parts.add("Engine analysis: $it") }
 
         return parts.joinToString(". ")
