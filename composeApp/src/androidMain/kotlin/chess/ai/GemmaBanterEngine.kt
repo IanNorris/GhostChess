@@ -50,8 +50,13 @@ class GemmaBanterEngine(
         }
         appContext = context.applicationContext
         logFile = java.io.File(context.filesDir, "gemma_log.txt")
-        log("initialize: creating LlmInference...")
         llmMutex.withLock {
+            // Skip if already initialized (prevents double-create crash)
+            if (llmInference != null) {
+                log("initialize: already initialized, skipping")
+                return
+            }
+            log("initialize: creating LlmInference...")
             withContext(Dispatchers.IO) {
                 try {
                     val options = LlmInference.LlmInferenceOptions.builder()
