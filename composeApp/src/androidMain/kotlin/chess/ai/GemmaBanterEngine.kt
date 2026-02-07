@@ -61,7 +61,7 @@ class GemmaBanterEngine(
                 try {
                     val options = LlmInference.LlmInferenceOptions.builder()
                         .setModelPath(modelManager.modelPath)
-                        .setMaxTokens(256)
+                        .setMaxTokens(4096)
                         .build()
                     llmInference = LlmInference.createFromOptions(context, options)
                     log("initialize: LlmInference created successfully")
@@ -104,7 +104,7 @@ class GemmaBanterEngine(
                 try {
                     val options = LlmInference.LlmInferenceOptions.builder()
                         .setModelPath(modelManager.modelPath)
-                        .setMaxTokens(256)
+                        .setMaxTokens(4096)
                         .build()
                     llmInference = LlmInference.createFromOptions(ctx, options)
                     log("reset: new LlmInference created")
@@ -143,6 +143,7 @@ class GemmaBanterEngine(
             log("generateBanter: history=${conversationHistory.size}, calling native...")
 
             val prompt = buildConversationPrompt()
+            log("generateBanter: prompt ${prompt.length} chars (~${prompt.length / 4} tokens)")
 
             // Blocking native call on IO thread, mutex held the whole time
             val response = withContext(Dispatchers.IO) {
@@ -187,7 +188,8 @@ class GemmaBanterEngine(
     }
 
     private fun trimHistory() {
-        while (conversationHistory.size > 20) {
+        // Keep last 12 turns (6 exchanges) to stay well within 4096 token context
+        while (conversationHistory.size > 12) {
             conversationHistory.removeAt(0)
         }
     }
