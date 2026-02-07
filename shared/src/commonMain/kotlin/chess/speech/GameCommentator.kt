@@ -1,6 +1,7 @@
 package chess.speech
 
 import chess.core.*
+import chess.engine.ChessEngine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -8,7 +9,7 @@ import kotlinx.coroutines.launch
 /**
  * Orchestrates speech commentary during gameplay.
  * Call the appropriate method when game events occur.
- * If a BanterGenerator is provided and ready, it generates AI-powered witty banter.
+ * If a BanterGenerator is provided and ready, it generates AI-powered commentary.
  * Otherwise falls back to template-based commentary.
  */
 class GameCommentator(
@@ -16,7 +17,8 @@ class GameCommentator(
     private val commentary: CommentaryGenerator = CommentaryGenerator(),
     private val playerColor: PieceColor = PieceColor.WHITE,
     private val banterGenerator: BanterGenerator? = null,
-    private val scope: CoroutineScope = CoroutineScope(Dispatchers.Default)
+    private val scope: CoroutineScope = CoroutineScope(Dispatchers.Default),
+    private val engine: ChessEngine? = null
 ) {
     private var currentBoard: Board = Board.initial()
     private var previousBoard: Board? = null
@@ -53,15 +55,15 @@ class GameCommentator(
     }
 
     fun onGhostPreviewStart() {
-        speakEvent(GameEvent.GhostPreviewStarted)
+        // No speech — ghost preview shouldn't interrupt commentary
     }
 
     fun onGhostAccepted() {
-        speakEvent(GameEvent.GhostAccepted)
+        // No speech for ghost events
     }
 
     fun onGhostDismissed() {
-        speakEvent(GameEvent.GhostDismissed)
+        // No speech for ghost events
     }
 
     fun onMoveUndone() {
@@ -85,15 +87,33 @@ class GameCommentator(
 
         val banter = banterGenerator
         if (banter != null && banter.isReady && events.isNotEmpty()) {
-            // Use AI banter for the highest-priority event
+            // Use AI commentary for the highest-priority event
             val primaryEvent = events.sortedBy { priorityOf(it) }.first()
             scope.launch {
+                // Get engine analysis for the current position
+                val engineAnalysis = try {
+                    engine?.getThinking(currentBoard.toFen(), 3)
+                } catch (_: Exception) { null }
+
                 val context = GameContext(
                     event = primaryEvent,
                     board = currentBoard,
                     boardBefore = previousBoard,
                     lastMove = lastMove,
                     playerColor = playerColor,
+                    evaluation = engineAnalysis?.evaluation,
+                    engineThinking = engineAnalysis?.description,
+                    engineCommentary = engineAnalysis?.let { thought ->
+                        buildString {
+                            append(thought.description)
+                            if (thought.threats.isNotEmpty()) {
+                                append(" Threats: ${thought.threats.joinToString(", ")}.")
+                            }
+                            if (thought.strategicNotes.isNotEmpty()) {
+                                append(" ${thought.strategicNotes.joinToString(". ")}.")
+                            }
+                        }
+                    },
                     moveNumber = moveNumber
                 )
                 val text = banter.generateBanter(context)

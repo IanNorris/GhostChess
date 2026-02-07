@@ -265,7 +265,7 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
     val scope = rememberCoroutineScope()
     val engine = remember { SimpleEngine() }
     val session = remember { GameSession(engine, config) }
-    val commentator = remember { GameCommentator(speechEngine, playerColor = config.playerColor, banterGenerator = banterGenerator) }
+    val commentator = remember { GameCommentator(speechEngine, playerColor = config.playerColor, banterGenerator = banterGenerator, engine = engine) }
 
     var gameState by remember { mutableStateOf(session.getGameState()) }
     var ghostState by remember { mutableStateOf(session.getGhostState()) }

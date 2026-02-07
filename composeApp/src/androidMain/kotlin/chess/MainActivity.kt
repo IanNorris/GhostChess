@@ -47,7 +47,7 @@ class AndroidSpeechEngine(private val activity: ComponentActivity) : SpeechEngin
 
     override fun speak(text: String) {
         if (!enabled || !ready) return
-        tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "chess_${System.currentTimeMillis()}")
+        tts?.speak(text, TextToSpeech.QUEUE_ADD, null, "chess_${System.currentTimeMillis()}")
     }
 
     override fun stop() {
@@ -135,7 +135,7 @@ fun GemmaBanterSettings(
         Text("🤖 AI Commentary", color = ChessColors.OnSurface, fontSize = 16.sp)
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-            "Uses Gemma 3 1B on-device for witty banter",
+            "Uses Gemma 3 1B on-device for chess advice",
             color = ChessColors.OnSurface.copy(alpha = 0.7f),
             fontSize = 12.sp
         )

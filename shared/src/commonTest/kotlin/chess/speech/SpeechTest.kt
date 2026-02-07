@@ -388,16 +388,24 @@ class GameCommentatorTest {
     }
 
     @Test
-    fun ghostEventsSpeak() {
+    fun ghostEventsDoNotSpeak() {
         val engine = TestSpeechEngine()
         val commentator = GameCommentator(engine)
 
         commentator.onGhostPreviewStart()
         commentator.onGhostAccepted()
         commentator.onGhostDismissed()
-        commentator.onMoveUndone()
 
-        assertEquals(4, engine.spoken.size)
+        // Ghost events should not produce speech (they interrupt gameplay)
+        assertEquals(0, engine.spoken.size)
+    }
+
+    @Test
+    fun moveUndoneSpeaks() {
+        val engine = TestSpeechEngine()
+        val commentator = GameCommentator(engine)
+        commentator.onMoveUndone()
+        assertEquals(1, engine.spoken.size)
     }
 
     @Test

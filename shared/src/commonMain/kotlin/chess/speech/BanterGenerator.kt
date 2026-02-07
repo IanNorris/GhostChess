@@ -15,6 +15,7 @@ data class GameContext(
     val playerColor: PieceColor = PieceColor.WHITE,
     val evaluation: Double? = null,
     val engineThinking: String? = null,
+    val engineCommentary: String? = null,
     val moveNumber: Int = 0
 )
 
