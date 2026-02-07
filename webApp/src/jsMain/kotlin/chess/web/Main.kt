@@ -9,6 +9,8 @@ import chess.game.GameSession
 import chess.ghost.GhostPreviewMode
 import chess.ghost.GhostPreviewState
 import chess.ghost.GhostPreviewStatus
+import chess.speech.GameCommentator
+import chess.speech.SpeechEngine
 import kotlinx.browser.document
 import kotlinx.browser.window
 import kotlinx.coroutines.*
@@ -48,6 +50,27 @@ var difficulty = Difficulty.MEDIUM
 var moveStartTime = 0.0
 var moveTimerInterval: Int? = null
 var gamePaused = false
+
+// Speech
+class BrowserSpeechEngine : SpeechEngine {
+    override var enabled: Boolean = false
+
+    override fun speak(text: String) {
+        if (!enabled) return
+        stop()
+        val utterance = js("new SpeechSynthesisUtterance(text)")
+        utterance.rate = 1.0
+        utterance.pitch = 1.0
+        js("window.speechSynthesis.speak(utterance)")
+    }
+
+    override fun stop() {
+        js("window.speechSynthesis.cancel()")
+    }
+}
+
+val speechEngine = BrowserSpeechEngine()
+var commentator: GameCommentator? = null
 
 fun main() {
     window.onload = { setupMenu(); null }
@@ -115,6 +138,10 @@ fun setupMenu() {
     val thinkingToggle = document.getElementById("thinking-toggle") as HTMLInputElement
     thinkingToggle.onchange = { showThinking = thinkingToggle.checked; null }
 
+    // Speech toggle
+    val speechToggle = document.getElementById("speech-toggle") as HTMLInputElement
+    speechToggle.onchange = { speechEngine.enabled = speechToggle.checked; null }
+
     // Win/loss display
     updateWinLossDisplay()
 
@@ -124,6 +151,7 @@ fun setupMenu() {
         val config = GameConfig(gameMode, playerColor, ghostDepth, showThinking, difficulty)
         val engine = SimpleEngine()
         session = GameSession(engine, config)
+        commentator = GameCommentator(speechEngine, playerColor = playerColor)
 
         menuScreen.asDynamic().style.display = "none"
         gameScreen.asDynamic().style.display = "block"
@@ -132,10 +160,15 @@ fun setupMenu() {
 
         scope.launch {
             session!!.initialize()
+            commentator?.onGameStart(playerColor == PieceColor.BLACK)
 
             // If playing black, engine goes first
             if (gameMode == GameMode.HUMAN_VS_ENGINE && playerColor == PieceColor.BLACK) {
+                val boardBefore = session!!.getGameState().board
                 session!!.makeEngineMove()
+                val boardAfter = session!!.getGameState().board
+                val engineMove = session!!.getGameState().moveHistory.last()
+                commentator?.onComputerMove(engineMove, boardBefore, boardAfter)
                 resetMoveTimer()
             }
 
@@ -193,6 +226,7 @@ fun setupMenu() {
             ) {
                 s.undoMove()
             }
+            commentator?.onMoveUndone()
             selectedSquare = null
             legalMovesForSelected = emptyList()
             resetMoveTimer()
@@ -380,27 +414,35 @@ fun onSquareClick(square: Square) {
 fun executeMove(s: GameSession, move: Move) {
     scope.launch {
         autoPlayJob?.cancel()
+        val boardBeforePlayer = s.getGameState().board
         s.makePlayerMove(move)
+        val boardAfterPlayer = s.getGameState().board
+        commentator?.onPlayerMove(move, boardBeforePlayer, boardAfterPlayer)
         selectedSquare = null
         legalMovesForSelected = emptyList()
         resetMoveTimer()
 
-        // In vs-engine mode, let engine respond first, then show ghost preview
+        // In vs-computer mode, let computer respond first, then show ghost preview
         if (s.config.mode == GameMode.HUMAN_VS_ENGINE &&
             s.getGameState().status == GameStatus.IN_PROGRESS &&
             !s.isPlayerTurn()
         ) {
             renderBoard()
             delay(300)
+            val boardBeforeEngine = s.getGameState().board
             s.makeEngineMove()
+            val boardAfterEngine = s.getGameState().board
+            val engineMove = s.getGameState().moveHistory.last()
+            commentator?.onComputerMove(engineMove, boardBeforeEngine, boardAfterEngine)
             resetMoveTimer()
         }
 
         checkAndRecordGameEnd()
 
-        // Request ghost preview from current position (after engine responded if applicable)
+        // Request ghost preview from current position (after computer responded if applicable)
         if (s.getGameState().status == GameStatus.IN_PROGRESS) {
             s.requestGhostPreview()
+            commentator?.onGhostPreviewStart()
         }
         renderBoard()
         renderGhostControls()
@@ -580,6 +622,7 @@ fun setupGhostButtons() {
         autoPlayJob?.cancel()
         scope.launch {
             s.acceptGhostLine()
+            commentator?.onGhostAccepted()
             renderBoard()
             renderGhostControls()
             renderThinkingPanel()
@@ -590,6 +633,7 @@ fun setupGhostButtons() {
         val s = session ?: return@addEventListener
         autoPlayJob?.cancel()
         s.dismissGhost()
+        commentator?.onGhostDismissed()
         renderBoard()
         renderGhostControls()
         renderThinkingPanel()

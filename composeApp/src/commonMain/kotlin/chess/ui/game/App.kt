@@ -18,6 +18,9 @@ import chess.game.GameMode
 import chess.game.GameSession
 import chess.ghost.GhostPreviewMode
 import chess.ghost.GhostPreviewState
+import chess.speech.GameCommentator
+import chess.speech.NoOpSpeechEngine
+import chess.speech.SpeechEngine
 import chess.ui.board.ChessBoard
 import chess.ui.ghost.EngineThinkingPanel
 import chess.ui.ghost.GhostPreviewControls
@@ -26,7 +29,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
-fun App() {
+fun App(speechEngine: SpeechEngine = NoOpSpeechEngine()) {
     var screen by remember { mutableStateOf<Screen>(Screen.Menu) }
 
     MaterialTheme {
@@ -38,10 +41,12 @@ fun App() {
         ) {
             when (val current = screen) {
                 is Screen.Menu -> MenuScreen(
-                    onStartGame = { config -> screen = Screen.Game(config) }
+                    onStartGame = { config -> screen = Screen.Game(config) },
+                    speechEngine = speechEngine
                 )
                 is Screen.Game -> GameScreen(
                     config = current.config,
+                    speechEngine = speechEngine,
                     onBack = { screen = Screen.Menu }
                 )
             }
@@ -55,12 +60,13 @@ sealed class Screen {
 }
 
 @Composable
-fun MenuScreen(onStartGame: (GameConfig) -> Unit) {
+fun MenuScreen(onStartGame: (GameConfig) -> Unit, speechEngine: SpeechEngine = NoOpSpeechEngine()) {
     var selectedMode by remember { mutableStateOf(GameMode.HUMAN_VS_ENGINE) }
     var playerColor by remember { mutableStateOf(PieceColor.WHITE) }
     var showThinking by remember { mutableStateOf(false) }
     var ghostDepth by remember { mutableStateOf(5) }
     var difficulty by remember { mutableStateOf(Difficulty.MEDIUM) }
+    var speechEnabled by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -162,10 +168,25 @@ fun MenuScreen(onStartGame: (GameConfig) -> Unit) {
             )
         }
 
+        // Speech toggle
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.testTag("speech-toggle-row")
+        ) {
+            Text("Speech commentary", color = ChessColors.OnSurface, fontSize = 14.sp)
+            Spacer(modifier = Modifier.width(8.dp))
+            Switch(
+                checked = speechEnabled,
+                onCheckedChange = { speechEnabled = it },
+                modifier = Modifier.testTag("speech-toggle")
+            )
+        }
+
         Spacer(modifier = Modifier.height(32.dp))
 
         Button(
             onClick = {
+                speechEngine.enabled = speechEnabled
                 onStartGame(
                     GameConfig(
                         mode = selectedMode,
@@ -185,10 +206,11 @@ fun MenuScreen(onStartGame: (GameConfig) -> Unit) {
 }
 
 @Composable
-fun GameScreen(config: GameConfig, onBack: () -> Unit) {
+fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine(), onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
     val engine = remember { SimpleEngine() }
     val session = remember { GameSession(engine, config) }
+    val commentator = remember { GameCommentator(speechEngine, playerColor = config.playerColor) }
 
     var gameState by remember { mutableStateOf(session.getGameState()) }
     var ghostState by remember { mutableStateOf(session.getGhostState()) }
@@ -212,12 +234,16 @@ fun GameScreen(config: GameConfig, onBack: () -> Unit) {
     LaunchedEffect(Unit) {
         session.initialize()
         initialized = true
+        commentator.onGameStart(config.playerColor == PieceColor.BLACK)
         if (config.mode == GameMode.HUMAN_VS_ENGINE &&
             config.playerColor == PieceColor.BLACK
         ) {
+            val boardBefore = session.getGameState().board
             session.makeEngineMove()
             gameState = session.getGameState()
             ghostState = session.getGhostState()
+            val engineMove = gameState.moveHistory.last()
+            commentator.onComputerMove(engineMove, boardBefore, gameState.board)
         }
     }
 
@@ -244,7 +270,9 @@ fun GameScreen(config: GameConfig, onBack: () -> Unit) {
             val move = legalMovesForSelected.find { it.to == square }
             if (move != null) {
                 scope.launch {
+                    val boardBeforePlayer = session.getGameState().board
                     gameState = session.makePlayerMove(move)
+                    commentator.onPlayerMove(move, boardBeforePlayer, gameState.board)
                     selectedSquare = null
                     legalMovesForSelected = emptyList()
                     moveElapsedSecs = 0
@@ -254,13 +282,17 @@ fun GameScreen(config: GameConfig, onBack: () -> Unit) {
                         !session.isPlayerTurn()
                     ) {
                         delay(500)
+                        val boardBeforeEngine = session.getGameState().board
                         session.makeEngineMove()
                         gameState = session.getGameState()
+                        val engineMove = gameState.moveHistory.last()
+                        commentator.onComputerMove(engineMove, boardBeforeEngine, gameState.board)
                         moveElapsedSecs = 0
                     }
 
                     session.requestGhostPreview()
                     ghostState = session.getGhostState()
+                    commentator.onGhostPreviewStart()
                 }
                 return
             }
@@ -324,13 +356,13 @@ fun GameScreen(config: GameConfig, onBack: () -> Unit) {
                 OutlinedButton(
                     onClick = {
                         session.undoMove()
-                        // In vs-computer mode, also undo the computer's move
                         if (config.mode == GameMode.HUMAN_VS_ENGINE &&
                             session.getGameState().moveHistory.isNotEmpty() &&
                             !session.isPlayerTurn()
                         ) {
                             session.undoMove()
                         }
+                        commentator.onMoveUndone()
                         gameState = session.getGameState()
                         ghostState = session.getGhostState()
                         selectedSquare = null
@@ -392,10 +424,12 @@ fun GameScreen(config: GameConfig, onBack: () -> Unit) {
                     scope.launch {
                         gameState = session.acceptGhostLine()
                         ghostState = session.getGhostState()
+                        commentator.onGhostAccepted()
                     }
                 },
                 onDismiss = {
                     ghostState = session.dismissGhost()
+                    commentator.onGhostDismissed()
                 },
                 onToggleMode = {
                     val newMode = if (ghostState.mode == GhostPreviewMode.AUTO_PLAY)
