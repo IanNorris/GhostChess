@@ -1,11 +1,17 @@
 package chess
 
+import android.content.Context
+import android.content.SharedPreferences
 import android.os.Bundle
 import android.speech.tts.TextToSpeech
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import chess.core.PieceColor
+import chess.game.Difficulty
+import chess.game.GameMode
 import chess.speech.SpeechEngine
 import chess.ui.game.App
+import chess.ui.game.SettingsStore
 import java.util.Locale
 
 class AndroidSpeechEngine(private val activity: ComponentActivity) : SpeechEngine {
@@ -36,14 +42,22 @@ class AndroidSpeechEngine(private val activity: ComponentActivity) : SpeechEngin
     }
 }
 
+class AndroidSettingsStore(context: Context) : SettingsStore {
+    private val prefs: SharedPreferences = context.getSharedPreferences("ghostchess_settings", Context.MODE_PRIVATE)
+
+    override fun getString(key: String): String? = prefs.getString(key, null)
+    override fun putString(key: String, value: String) { prefs.edit().putString(key, value).apply() }
+}
+
 class MainActivity : ComponentActivity() {
     private var speechEngine: AndroidSpeechEngine? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         speechEngine = AndroidSpeechEngine(this)
+        val settingsStore = AndroidSettingsStore(this)
         setContent {
-            App(speechEngine = speechEngine!!)
+            App(speechEngine = speechEngine!!, settingsStore = settingsStore)
         }
     }
 

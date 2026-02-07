@@ -156,6 +156,32 @@
             display: flex; align-items: center; justify-content: center;
         }
         .promotion-choices button:hover { border-color: #6BAF6B; background: #4a4a4a; }
+
+        /* Landscape layout */
+        @media (min-aspect-ratio: 5/4) {
+            #game-screen {
+                display: flex !important;
+                flex-direction: row;
+                gap: 16px;
+                align-items: flex-start;
+                padding-top: 8px !important;
+            }
+            .game-left {
+                flex: 0 0 auto;
+                width: 50%;
+                max-width: 50vh;
+            }
+            .game-right {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+                padding-top: 4px;
+            }
+        }
+        @media (max-aspect-ratio: 5/4) {
+            .game-left, .game-right { display: contents; }
+        }
     </style>
 </head>
 <body>
@@ -212,21 +238,24 @@
 
     <!-- Game Screen -->
     <div id="game-screen" data-testid="game-screen">
-        <div class="top-bar">
-            <button id="pause-btn" data-testid="pause-btn">⏸ Pause</button>
-            <span id="move-timer" data-testid="move-timer" style="font-size:13px; color:#FFB74D;">0:00</span>
-            <span id="game-status" data-testid="game-status">White to move</span>
-            <button id="undo-btn" data-testid="undo-btn">Undo</button>
+        <div class="game-left">
+            <div id="board-wrapper">
+                <div class="rank-col" id="rank-labels"></div>
+                <div id="chess-board" data-testid="chess-board"></div>
+                <div></div>
+                <div class="file-row" id="file-labels"></div>
+            </div>
         </div>
 
-        <div id="board-wrapper">
-            <div class="rank-col" id="rank-labels"></div>
-            <div id="chess-board" data-testid="chess-board"></div>
-            <div></div>
-            <div class="file-row" id="file-labels"></div>
-        </div>
+        <div class="game-right">
+            <div class="top-bar">
+                <button id="pause-btn" data-testid="pause-btn">⏸ Pause</button>
+                <span id="move-timer" data-testid="move-timer" style="font-size:13px; color:#FFB74D;">0:00</span>
+                <span id="game-status" data-testid="game-status">White to move</span>
+                <button id="undo-btn" data-testid="undo-btn">Undo</button>
+            </div>
 
-        <div id="ghost-controls" data-testid="ghost-controls">
+            <div id="ghost-controls" data-testid="ghost-controls">
             <div id="ghost-status-text" data-testid="ghost-status-text"></div>
             <div id="ghost-move-info" data-testid="ghost-move-info" style="color:#FFB74D; font-size:12px;"></div>
             <div id="ghost-eval" data-testid="ghost-eval" style="font-size:12px;"></div>
@@ -252,6 +281,7 @@
         </div>
 
         <div id="move-history" data-testid="move-history"></div>
+        </div><!-- .game-right -->
     </div>
 
     <!-- Promotion Modal -->

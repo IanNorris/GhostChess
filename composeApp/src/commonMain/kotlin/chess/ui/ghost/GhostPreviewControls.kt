@@ -142,7 +142,7 @@ fun GhostPreviewControls(
                 onClick = onAccept,
                 modifier = Modifier.testTag("ghost-accept-btn"),
                 colors = ButtonDefaults.buttonColors(containerColor = ChessColors.Primary),
-                enabled = state.currentStepIndex >= 0
+                enabled = state.isActive
             ) {
                 Text("Accept")
             }

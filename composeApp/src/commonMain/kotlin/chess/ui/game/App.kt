@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -28,8 +29,18 @@ import chess.ui.theme.ChessColors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+interface SettingsStore {
+    fun getString(key: String): String?
+    fun putString(key: String, value: String)
+}
+
+class NoOpSettingsStore : SettingsStore {
+    override fun getString(key: String): String? = null
+    override fun putString(key: String, value: String) {}
+}
+
 @Composable
-fun App(speechEngine: SpeechEngine = NoOpSpeechEngine()) {
+fun App(speechEngine: SpeechEngine = NoOpSpeechEngine(), settingsStore: SettingsStore = NoOpSettingsStore()) {
     var screen by remember { mutableStateOf<Screen>(Screen.Menu) }
 
     MaterialTheme {
@@ -42,7 +53,8 @@ fun App(speechEngine: SpeechEngine = NoOpSpeechEngine()) {
             when (val current = screen) {
                 is Screen.Menu -> MenuScreen(
                     onStartGame = { config -> screen = Screen.Game(config) },
-                    speechEngine = speechEngine
+                    speechEngine = speechEngine,
+                    settingsStore = settingsStore
                 )
                 is Screen.Game -> GameScreen(
                     config = current.config,
@@ -60,13 +72,40 @@ sealed class Screen {
 }
 
 @Composable
-fun MenuScreen(onStartGame: (GameConfig) -> Unit, speechEngine: SpeechEngine = NoOpSpeechEngine()) {
-    var selectedMode by remember { mutableStateOf(GameMode.HUMAN_VS_ENGINE) }
-    var playerColor by remember { mutableStateOf(PieceColor.WHITE) }
-    var showThinking by remember { mutableStateOf(false) }
-    var ghostDepth by remember { mutableStateOf(5) }
-    var difficulty by remember { mutableStateOf(Difficulty.MEDIUM) }
-    var speechEnabled by remember { mutableStateOf(false) }
+fun MenuScreen(onStartGame: (GameConfig) -> Unit, speechEngine: SpeechEngine = NoOpSpeechEngine(), settingsStore: SettingsStore = NoOpSettingsStore()) {
+    var selectedMode by remember {
+        mutableStateOf(
+            settingsStore.getString("mode")?.let {
+                try { GameMode.valueOf(it) } catch (_: Exception) { GameMode.HUMAN_VS_ENGINE }
+            } ?: GameMode.HUMAN_VS_ENGINE
+        )
+    }
+    var playerColor by remember {
+        mutableStateOf(
+            settingsStore.getString("color")?.let {
+                try { PieceColor.valueOf(it) } catch (_: Exception) { PieceColor.WHITE }
+            } ?: PieceColor.WHITE
+        )
+    }
+    var showThinking by remember { mutableStateOf(settingsStore.getString("thinking") == "true") }
+    var ghostDepth by remember { mutableStateOf(settingsStore.getString("depth")?.toIntOrNull() ?: 5) }
+    var difficulty by remember {
+        mutableStateOf(
+            settingsStore.getString("difficulty")?.let {
+                try { Difficulty.valueOf(it) } catch (_: Exception) { Difficulty.MEDIUM }
+            } ?: Difficulty.MEDIUM
+        )
+    }
+    var speechEnabled by remember { mutableStateOf(settingsStore.getString("speech") == "true") }
+
+    fun saveSettings() {
+        settingsStore.putString("mode", selectedMode.name)
+        settingsStore.putString("color", playerColor.name)
+        settingsStore.putString("thinking", showThinking.toString())
+        settingsStore.putString("depth", ghostDepth.toString())
+        settingsStore.putString("difficulty", difficulty.name)
+        settingsStore.putString("speech", speechEnabled.toString())
+    }
 
     Column(
         modifier = Modifier
@@ -90,13 +129,13 @@ fun MenuScreen(onStartGame: (GameConfig) -> Unit, speechEngine: SpeechEngine = N
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilterChip(
                 selected = selectedMode == GameMode.HUMAN_VS_ENGINE,
-                onClick = { selectedMode = GameMode.HUMAN_VS_ENGINE },
+                onClick = { selectedMode = GameMode.HUMAN_VS_ENGINE; saveSettings() },
                 label = { Text("vs Computer") },
                 modifier = Modifier.testTag("mode-vs-engine")
             )
             FilterChip(
                 selected = selectedMode == GameMode.HUMAN_VS_HUMAN,
-                onClick = { selectedMode = GameMode.HUMAN_VS_HUMAN },
+                onClick = { selectedMode = GameMode.HUMAN_VS_HUMAN; saveSettings() },
                 label = { Text("vs Human") },
                 modifier = Modifier.testTag("mode-vs-human")
             )
@@ -111,13 +150,13 @@ fun MenuScreen(onStartGame: (GameConfig) -> Unit, speechEngine: SpeechEngine = N
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(
                     selected = playerColor == PieceColor.WHITE,
-                    onClick = { playerColor = PieceColor.WHITE },
+                    onClick = { playerColor = PieceColor.WHITE; saveSettings() },
                     label = { Text("White ♔") },
                     modifier = Modifier.testTag("color-white")
                 )
                 FilterChip(
                     selected = playerColor == PieceColor.BLACK,
-                    onClick = { playerColor = PieceColor.BLACK },
+                    onClick = { playerColor = PieceColor.BLACK; saveSettings() },
                     label = { Text("Black ♚") },
                     modifier = Modifier.testTag("color-black")
                 )
@@ -131,7 +170,7 @@ fun MenuScreen(onStartGame: (GameConfig) -> Unit, speechEngine: SpeechEngine = N
                 Difficulty.entries.forEach { diff ->
                     FilterChip(
                         selected = difficulty == diff,
-                        onClick = { difficulty = diff },
+                        onClick = { difficulty = diff; saveSettings() },
                         label = { Text(diff.label()) },
                         modifier = Modifier.testTag("difficulty-${diff.name.lowercase()}")
                     )
@@ -144,7 +183,7 @@ fun MenuScreen(onStartGame: (GameConfig) -> Unit, speechEngine: SpeechEngine = N
         Text("Preview depth: $ghostDepth moves", color = ChessColors.OnSurface, fontSize = 14.sp)
         Slider(
             value = ghostDepth.toFloat(),
-            onValueChange = { ghostDepth = it.toInt() },
+            onValueChange = { ghostDepth = it.toInt(); saveSettings() },
             valueRange = 1f..10f,
             steps = 8,
             modifier = Modifier
@@ -163,7 +202,7 @@ fun MenuScreen(onStartGame: (GameConfig) -> Unit, speechEngine: SpeechEngine = N
             Spacer(modifier = Modifier.width(8.dp))
             Switch(
                 checked = showThinking,
-                onCheckedChange = { showThinking = it },
+                onCheckedChange = { showThinking = it; saveSettings() },
                 modifier = Modifier.testTag("thinking-toggle")
             )
         }
@@ -177,7 +216,7 @@ fun MenuScreen(onStartGame: (GameConfig) -> Unit, speechEngine: SpeechEngine = N
             Spacer(modifier = Modifier.width(8.dp))
             Switch(
                 checked = speechEnabled,
-                onCheckedChange = { speechEnabled = it },
+                onCheckedChange = { speechEnabled = it; saveSettings() },
                 modifier = Modifier.testTag("speech-toggle")
             )
         }
@@ -218,14 +257,25 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
     var legalMovesForSelected by remember { mutableStateOf<List<Move>>(emptyList()) }
     var initialized by remember { mutableStateOf(false) }
     var gamePaused by remember { mutableStateOf(false) }
-    var moveElapsedSecs by remember { mutableStateOf(0) }
+    var whiteElapsedSecs by remember { mutableIntStateOf(0) }
+    var blackElapsedSecs by remember { mutableIntStateOf(0) }
 
-    // Move timer
-    LaunchedEffect(gamePaused, gameState.status) {
+    // Move timer — only counts during current player's turn (human only)
+    LaunchedEffect(gamePaused, gameState.status, gameState.board.activeColor) {
         if (!gamePaused && gameState.status == GameStatus.IN_PROGRESS && initialized) {
-            while (true) {
-                delay(1000)
-                if (!gamePaused) moveElapsedSecs++
+            val activeColor = gameState.board.activeColor
+            val isHumanTurn = when (config.mode) {
+                GameMode.HUMAN_VS_HUMAN -> true
+                GameMode.HUMAN_VS_ENGINE -> activeColor == config.playerColor
+            }
+            if (isHumanTurn) {
+                while (true) {
+                    delay(1000)
+                    if (!gamePaused) {
+                        if (activeColor == PieceColor.WHITE) whiteElapsedSecs++
+                        else blackElapsedSecs++
+                    }
+                }
             }
         }
     }
@@ -275,7 +325,6 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
                     commentator.onPlayerMove(move, boardBeforePlayer, gameState.board)
                     selectedSquare = null
                     legalMovesForSelected = emptyList()
-                    moveElapsedSecs = 0
 
                     if (config.mode == GameMode.HUMAN_VS_ENGINE &&
                         gameState.status == GameStatus.IN_PROGRESS &&
@@ -287,7 +336,6 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
                         gameState = session.getGameState()
                         val engineMove = gameState.moveHistory.last()
                         commentator.onComputerMove(engineMove, boardBeforeEngine, gameState.board)
-                        moveElapsedSecs = 0
                     }
 
                     session.requestGhostPreview()
@@ -330,10 +378,17 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
                 }
 
                 // Move timer
-                val mins = moveElapsedSecs / 60
-                val secs = moveElapsedSecs % 60
+                val timerText = if (config.mode == GameMode.HUMAN_VS_HUMAN) {
+                    val wm = whiteElapsedSecs / 60; val ws = whiteElapsedSecs % 60
+                    val bm = blackElapsedSecs / 60; val bs = blackElapsedSecs % 60
+                    "⬜ $wm:${ws.toString().padStart(2, '0')}  ⬛ $bm:${bs.toString().padStart(2, '0')}"
+                } else {
+                    val playerSecs = if (config.playerColor == PieceColor.WHITE) whiteElapsedSecs else blackElapsedSecs
+                    val mins = playerSecs / 60; val secs = playerSecs % 60
+                    "$mins:${secs.toString().padStart(2, '0')}"
+                }
                 Text(
-                    text = "$mins:${secs.toString().padStart(2, '0')}",
+                    text = timerText,
                     color = ChessColors.Accent,
                     fontSize = 14.sp,
                     modifier = Modifier.testTag("move-timer")
@@ -367,7 +422,6 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
                         ghostState = session.getGhostState()
                         selectedSquare = null
                         legalMovesForSelected = emptyList()
-                        moveElapsedSecs = 0
                     },
                     modifier = Modifier.testTag("undo-btn").height(44.dp),
                     shape = RoundedCornerShape(8.dp),
@@ -428,7 +482,20 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
                     }
                 },
                 onDismiss = {
-                    ghostState = session.dismissGhost()
+                    session.dismissGhost()
+                    // Undo the player's move so they can try something different
+                    try {
+                        if (config.mode == GameMode.HUMAN_VS_ENGINE) {
+                            session.undoMove() // undo engine response
+                            session.undoMove() // undo player move
+                        } else {
+                            session.undoMove()
+                        }
+                    } catch (_: Exception) {}
+                    gameState = session.getGameState()
+                    ghostState = session.getGhostState()
+                    selectedSquare = null
+                    legalMovesForSelected = emptyList()
                     commentator.onGhostDismissed()
                 },
                 onToggleMode = {

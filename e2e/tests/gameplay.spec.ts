@@ -25,14 +25,14 @@ test.describe('Chess Gameplay', () => {
       await makeMove(page, 'e2', 'e4');
       await expect(page.getByTestId('piece-e4')).toBeVisible({ timeout: 5000 });
       // After ghost dismiss, should be black's turn
-      await page.getByTestId('ghost-dismiss-btn').click({ timeout: 10000 });
+      await page.getByTestId('ghost-accept-btn').click({ timeout: 10000 });
       await expect(page.getByTestId('game-status')).toContainText('Black to move');
     });
 
     test('black can move after white', async ({ page }) => {
       await startHvH(page);
       await makeMove(page, 'e2', 'e4');
-      await page.getByTestId('ghost-dismiss-btn').click({ timeout: 10000 });
+      await page.getByTestId('ghost-accept-btn').click({ timeout: 10000 });
 
       // Black plays e7-e5
       await makeMove(page, 'e7', 'e5');
@@ -68,16 +68,16 @@ test.describe('Chess Gameplay', () => {
 
       // 1. e4
       await makeMove(page, 'e2', 'e4');
-      await page.getByTestId('ghost-dismiss-btn').click({ timeout: 10000 });
+      await page.getByTestId('ghost-accept-btn').click({ timeout: 10000 });
       // 1... e5
       await makeMove(page, 'e7', 'e5');
-      await page.getByTestId('ghost-dismiss-btn').click({ timeout: 10000 });
+      await page.getByTestId('ghost-accept-btn').click({ timeout: 10000 });
       // 2. Nf3
       await makeMove(page, 'g1', 'f3');
-      await page.getByTestId('ghost-dismiss-btn').click({ timeout: 10000 });
+      await page.getByTestId('ghost-accept-btn').click({ timeout: 10000 });
       // 2... Nc6
       await makeMove(page, 'b8', 'c6');
-      await page.getByTestId('ghost-dismiss-btn').click({ timeout: 10000 });
+      await page.getByTestId('ghost-accept-btn').click({ timeout: 10000 });
       // 3. Bc4
       await makeMove(page, 'f1', 'c4');
       await expect(page.getByTestId('piece-c4')).toBeVisible({ timeout: 5000 });
@@ -87,9 +87,9 @@ test.describe('Chess Gameplay', () => {
       await startHvH(page);
       // 1. e4 d5 2. exd5
       await makeMove(page, 'e2', 'e4');
-      await page.getByTestId('ghost-dismiss-btn').click({ timeout: 10000 });
+      await page.getByTestId('ghost-accept-btn').click({ timeout: 10000 });
       await makeMove(page, 'd7', 'd5');
-      await page.getByTestId('ghost-dismiss-btn').click({ timeout: 10000 });
+      await page.getByTestId('ghost-accept-btn').click({ timeout: 10000 });
       // exd5 capture
       await makeMove(page, 'e4', 'd5');
       await expect(page.getByTestId('piece-d5')).toBeVisible({ timeout: 5000 });
@@ -200,7 +200,7 @@ test.describe('Chess Gameplay', () => {
 
       // Make a move
       await makeMove(page, 'e2', 'e4');
-      await page.getByTestId('ghost-dismiss-btn').click({ timeout: 10000 });
+      await page.getByTestId('ghost-accept-btn').click({ timeout: 10000 });
 
       // History should now be visible and contain the move
       await expect(history).toBeVisible({ timeout: 5000 });
@@ -265,13 +265,13 @@ test.describe('Chess Gameplay', () => {
 
       // 1. f3
       await makeMove(page, 'f2', 'f3');
-      await page.getByTestId('ghost-dismiss-btn').click({ timeout: 10000 });
+      await page.getByTestId('ghost-accept-btn').click({ timeout: 10000 });
       // 1... e5
       await makeMove(page, 'e7', 'e5');
-      await page.getByTestId('ghost-dismiss-btn').click({ timeout: 10000 });
+      await page.getByTestId('ghost-accept-btn').click({ timeout: 10000 });
       // 2. g4
       await makeMove(page, 'g2', 'g4');
-      await page.getByTestId('ghost-dismiss-btn').click({ timeout: 10000 });
+      await page.getByTestId('ghost-accept-btn').click({ timeout: 10000 });
       // 2... Qh4#
       await makeMove(page, 'd8', 'h4');
 
@@ -284,17 +284,17 @@ test.describe('Chess Gameplay', () => {
 
       // 1. e4 e5 2. Bc4 Nc6 3. Qh5 Nf6 4. Qxf7#
       await makeMove(page, 'e2', 'e4');
-      await page.getByTestId('ghost-dismiss-btn').click({ timeout: 10000 });
+      await page.getByTestId('ghost-accept-btn').click({ timeout: 10000 });
       await makeMove(page, 'e7', 'e5');
-      await page.getByTestId('ghost-dismiss-btn').click({ timeout: 10000 });
+      await page.getByTestId('ghost-accept-btn').click({ timeout: 10000 });
       await makeMove(page, 'f1', 'c4');
-      await page.getByTestId('ghost-dismiss-btn').click({ timeout: 10000 });
+      await page.getByTestId('ghost-accept-btn').click({ timeout: 10000 });
       await makeMove(page, 'b8', 'c6');
-      await page.getByTestId('ghost-dismiss-btn').click({ timeout: 10000 });
+      await page.getByTestId('ghost-accept-btn').click({ timeout: 10000 });
       await makeMove(page, 'd1', 'h5');
-      await page.getByTestId('ghost-dismiss-btn').click({ timeout: 10000 });
+      await page.getByTestId('ghost-accept-btn').click({ timeout: 10000 });
       await makeMove(page, 'g8', 'f6');
-      await page.getByTestId('ghost-dismiss-btn').click({ timeout: 10000 });
+      await page.getByTestId('ghost-accept-btn').click({ timeout: 10000 });
       await makeMove(page, 'h5', 'f7');
 
       await expect(page.getByTestId('game-status')).toContainText('White wins', { timeout: 5000 });
@@ -305,11 +305,11 @@ test.describe('Chess Gameplay', () => {
 
       // Fool's mate
       await makeMove(page, 'f2', 'f3');
-      await page.getByTestId('ghost-dismiss-btn').click({ timeout: 10000 });
+      await page.getByTestId('ghost-accept-btn').click({ timeout: 10000 });
       await makeMove(page, 'e7', 'e5');
-      await page.getByTestId('ghost-dismiss-btn').click({ timeout: 10000 });
+      await page.getByTestId('ghost-accept-btn').click({ timeout: 10000 });
       await makeMove(page, 'g2', 'g4');
-      await page.getByTestId('ghost-dismiss-btn').click({ timeout: 10000 });
+      await page.getByTestId('ghost-accept-btn').click({ timeout: 10000 });
       await makeMove(page, 'd8', 'h4');
 
       await expect(page.getByTestId('game-status')).toContainText('Black wins', { timeout: 5000 });

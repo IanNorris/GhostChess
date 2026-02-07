@@ -245,7 +245,7 @@ test.describe('Ghost display (pieces hidden/shown correctly)', () => {
     }
   });
 
-  test('dismiss ghost restores original pieces', async ({ page }) => {
+  test('dismiss ghost restores original pieces and undoes move', async ({ page }) => {
     await startHvH(page);
     await makeMove(page, 'e2', 'e4');
 
@@ -257,7 +257,7 @@ test.describe('Ghost display (pieces hidden/shown correctly)', () => {
     await page.getByTestId('ghost-step-forward-btn').click();
     await page.waitForTimeout(200);
 
-    // Dismiss
+    // Dismiss — should undo the move too
     await page.getByTestId('ghost-dismiss-btn').click();
     await page.waitForTimeout(300);
 
@@ -265,8 +265,9 @@ test.describe('Ghost display (pieces hidden/shown correctly)', () => {
     const ghostPieces = await page.locator('[data-testid^="ghost-piece-"]').count();
     expect(ghostPieces).toBe(0);
 
-    // Original board should be restored — e4 pawn should be there
-    await expect(page.getByTestId('piece-e4')).toBeVisible();
+    // Move was undone — pawn should be back at e2, not e4
+    await expect(page.getByTestId('piece-e2')).toBeVisible();
+    await expect(page.getByTestId('game-status')).toContainText('White to move');
   });
 
   test('ghost reset returns display to pre-ghost state', async ({ page }) => {

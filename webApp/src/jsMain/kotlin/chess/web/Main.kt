@@ -50,6 +50,9 @@ var difficulty = Difficulty.MEDIUM
 var moveStartTime = 0.0
 var moveTimerInterval: Int? = null
 var gamePaused = false
+var whiteTimeMs = 0.0
+var blackTimeMs = 0.0
+var lastTimerTick = 0.0
 
 // Speech
 class BrowserSpeechEngine : SpeechEngine {
@@ -73,7 +76,37 @@ val speechEngine = BrowserSpeechEngine()
 var commentator: GameCommentator? = null
 
 fun main() {
-    window.onload = { setupMenu(); null }
+    window.onload = { loadSettings(); setupMenu(); null }
+}
+
+fun saveSettings() {
+    window.localStorage.setItem("ghostchess_mode", gameMode.name)
+    window.localStorage.setItem("ghostchess_color", playerColor.name)
+    window.localStorage.setItem("ghostchess_depth", ghostDepth.toString())
+    window.localStorage.setItem("ghostchess_thinking", showThinking.toString())
+    window.localStorage.setItem("ghostchess_difficulty", difficulty.name)
+    window.localStorage.setItem("ghostchess_speech", speechEngine.enabled.toString())
+}
+
+fun loadSettings() {
+    window.localStorage.getItem("ghostchess_mode")?.let {
+        gameMode = try { GameMode.valueOf(it) } catch (_: Exception) { GameMode.HUMAN_VS_ENGINE }
+    }
+    window.localStorage.getItem("ghostchess_color")?.let {
+        playerColor = try { PieceColor.valueOf(it) } catch (_: Exception) { PieceColor.WHITE }
+    }
+    window.localStorage.getItem("ghostchess_depth")?.let {
+        ghostDepth = it.toIntOrNull() ?: 5
+    }
+    window.localStorage.getItem("ghostchess_thinking")?.let {
+        showThinking = it == "true"
+    }
+    window.localStorage.getItem("ghostchess_difficulty")?.let {
+        difficulty = try { Difficulty.valueOf(it) } catch (_: Exception) { Difficulty.MEDIUM }
+    }
+    window.localStorage.getItem("ghostchess_speech")?.let {
+        speechEngine.enabled = it == "true"
+    }
 }
 
 fun setupMenu() {
@@ -94,8 +127,8 @@ fun setupMenu() {
         updateWinLossDisplay()
     }
 
-    modeEngine.onclick = { gameMode = GameMode.HUMAN_VS_ENGINE; updateModeChips(); null }
-    modeHuman.onclick = { gameMode = GameMode.HUMAN_VS_HUMAN; updateModeChips(); null }
+    modeEngine.onclick = { gameMode = GameMode.HUMAN_VS_ENGINE; updateModeChips(); saveSettings(); null }
+    modeHuman.onclick = { gameMode = GameMode.HUMAN_VS_HUMAN; updateModeChips(); saveSettings(); null }
 
     // Color chips
     val colorWhite = document.getElementById("color-white") as HTMLElement
@@ -106,8 +139,8 @@ fun setupMenu() {
         colorBlack.className = if (playerColor == PieceColor.BLACK) "chip selected" else "chip"
     }
 
-    colorWhite.onclick = { playerColor = PieceColor.WHITE; updateColorChips(); null }
-    colorBlack.onclick = { playerColor = PieceColor.BLACK; updateColorChips(); null }
+    colorWhite.onclick = { playerColor = PieceColor.WHITE; updateColorChips(); saveSettings(); null }
+    colorBlack.onclick = { playerColor = PieceColor.BLACK; updateColorChips(); saveSettings(); null }
 
     // Difficulty chips
     val diffEasy = document.getElementById("difficulty-easy") as HTMLElement
@@ -121,9 +154,9 @@ fun setupMenu() {
         updateWinLossDisplay()
     }
 
-    diffEasy.onclick = { difficulty = Difficulty.EASY; updateDifficultyChips(); null }
-    diffMedium.onclick = { difficulty = Difficulty.MEDIUM; updateDifficultyChips(); null }
-    diffHard.onclick = { difficulty = Difficulty.HARD; updateDifficultyChips(); null }
+    diffEasy.onclick = { difficulty = Difficulty.EASY; updateDifficultyChips(); saveSettings(); null }
+    diffMedium.onclick = { difficulty = Difficulty.MEDIUM; updateDifficultyChips(); saveSettings(); null }
+    diffHard.onclick = { difficulty = Difficulty.HARD; updateDifficultyChips(); saveSettings(); null }
 
     // Depth slider
     val depthSlider = document.getElementById("depth-slider") as HTMLInputElement
@@ -131,16 +164,26 @@ fun setupMenu() {
     depthSlider.oninput = {
         ghostDepth = depthSlider.value.toInt()
         depthLabel.textContent = "Preview depth: $ghostDepth moves"
+        saveSettings()
         null
     }
 
     // Thinking toggle
     val thinkingToggle = document.getElementById("thinking-toggle") as HTMLInputElement
-    thinkingToggle.onchange = { showThinking = thinkingToggle.checked; null }
+    thinkingToggle.onchange = { showThinking = thinkingToggle.checked; saveSettings(); null }
 
     // Speech toggle
     val speechToggle = document.getElementById("speech-toggle") as HTMLInputElement
-    speechToggle.onchange = { speechEngine.enabled = speechToggle.checked; null }
+    speechToggle.onchange = { speechEngine.enabled = speechToggle.checked; saveSettings(); null }
+
+    // Restore UI from loaded settings
+    updateModeChips()
+    updateColorChips()
+    updateDifficultyChips()
+    depthSlider.value = ghostDepth.toString()
+    depthLabel.textContent = "Preview depth: $ghostDepth moves"
+    thinkingToggle.checked = showThinking
+    speechToggle.checked = speechEngine.enabled
 
     // Win/loss display
     updateWinLossDisplay()
@@ -156,6 +199,7 @@ fun setupMenu() {
         menuScreen.asDynamic().style.display = "none"
         gameScreen.asDynamic().style.display = "block"
         gamePaused = false
+        resetAllTimers()
         startMoveTimer()
 
         scope.launch {
@@ -335,8 +379,7 @@ fun renderBoard() {
 
     // Status
     val status = s.getGameState().status
-    val statusEl = document.getElementById("game-status")!!
-    statusEl.textContent = when (status) {
+    val statusText = when (status) {
         GameStatus.IN_PROGRESS -> {
             val turn = if (board.activeColor == PieceColor.WHITE) "White" else "Black"
             "$turn to move"
@@ -345,6 +388,7 @@ fun renderBoard() {
         GameStatus.BLACK_WINS -> "Black wins! ♚"
         GameStatus.DRAW -> "Draw"
     }
+    document.getElementById("game-status")!!.textContent = statusText
 
     // Move history
     renderMoveHistory()
@@ -509,7 +553,7 @@ fun renderGhostControls() {
     (document.getElementById("ghost-reset-btn") as HTMLButtonElement).disabled = ghost.currentStepIndex <= -1
     (document.getElementById("ghost-step-back-btn") as HTMLButtonElement).disabled = !ghost.canStepBack
     (document.getElementById("ghost-step-forward-btn") as HTMLButtonElement).disabled = !ghost.canStepForward
-    (document.getElementById("ghost-accept-btn") as HTMLButtonElement).disabled = ghost.currentStepIndex < 0
+    (document.getElementById("ghost-accept-btn") as HTMLButtonElement).disabled = !ghost.isActive
 
     val playPauseBtn = document.getElementById("ghost-play-pause-btn") as HTMLButtonElement
     playPauseBtn.textContent = if (ghost.status == GhostPreviewStatus.PLAYING) "Pause" else "Play"
@@ -633,6 +677,17 @@ fun setupGhostButtons() {
         val s = session ?: return@addEventListener
         autoPlayJob?.cancel()
         s.dismissGhost()
+        // Undo the player's move so they can try something different
+        try {
+            if (s.config.mode == GameMode.HUMAN_VS_ENGINE) {
+                // Undo engine's response AND player's move
+                s.undoMove() // undo engine response
+                s.undoMove() // undo player move
+            } else {
+                // HvH: just undo the last move
+                s.undoMove()
+            }
+        } catch (_: Exception) {}
         commentator?.onGhostDismissed()
         renderBoard()
         renderGhostControls()
@@ -658,17 +713,30 @@ fun setupGhostButtons() {
     }
 }
 
-// --- Move Timer ---
+// --- Move Timer (dual clocks) ---
 
 fun startMoveTimer() {
-    moveStartTime = window.asDynamic().performance.now() as Double
+    lastTimerTick = window.asDynamic().performance.now() as Double
     moveTimerInterval?.let { window.clearInterval(it) }
     moveTimerInterval = window.setInterval({
         if (!gamePaused) {
-            val elapsed = (window.asDynamic().performance.now() as Double - moveStartTime) / 1000.0
-            val mins = elapsed.toInt() / 60
-            val secs = elapsed.toInt() % 60
-            document.getElementById("move-timer")?.textContent = "$mins:${secs.toString().padStart(2, '0')}"
+            val s = session ?: return@setInterval
+            val now = window.asDynamic().performance.now() as Double
+            val delta = now - lastTimerTick
+            lastTimerTick = now
+
+            val activeColor = s.getGameState().board.activeColor
+            // Only count time for human players
+            val shouldCount = when (s.config.mode) {
+                GameMode.HUMAN_VS_HUMAN -> true
+                GameMode.HUMAN_VS_ENGINE -> activeColor == s.config.playerColor
+            }
+            if (shouldCount) {
+                if (activeColor == PieceColor.WHITE) whiteTimeMs += delta
+                else blackTimeMs += delta
+            }
+
+            updateTimerDisplay()
         }
     }, 500)
 }
@@ -679,8 +747,32 @@ fun stopMoveTimer() {
 }
 
 fun resetMoveTimer() {
-    moveStartTime = window.asDynamic().performance.now() as Double
-    document.getElementById("move-timer")?.textContent = "0:00"
+    lastTimerTick = window.asDynamic().performance.now() as Double
+}
+
+fun resetAllTimers() {
+    whiteTimeMs = 0.0
+    blackTimeMs = 0.0
+    lastTimerTick = window.asDynamic().performance.now() as Double
+    updateTimerDisplay()
+}
+
+fun formatTime(ms: Double): String {
+    val totalSecs = (ms / 1000.0).toInt()
+    val mins = totalSecs / 60
+    val secs = totalSecs % 60
+    return "$mins:${secs.toString().padStart(2, '0')}"
+}
+
+fun updateTimerDisplay() {
+    val s = session ?: return
+    val text = if (s.config.mode == GameMode.HUMAN_VS_HUMAN) {
+        "⬜ ${formatTime(whiteTimeMs)}  ⬛ ${formatTime(blackTimeMs)}"
+    } else {
+        val playerTime = if (s.config.playerColor == PieceColor.WHITE) whiteTimeMs else blackTimeMs
+        formatTime(playerTime)
+    }
+    document.getElementById("move-timer")?.textContent = text
 }
 
 // --- Win/Loss Counter (localStorage) ---
