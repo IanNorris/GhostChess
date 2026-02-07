@@ -10,6 +10,7 @@ import chess.core.PieceColor
 data class GameContext(
     val event: GameEvent,
     val board: Board,
+    val boardBefore: Board? = null,
     val lastMove: Move? = null,
     val playerColor: PieceColor = PieceColor.WHITE,
     val evaluation: Double? = null,
@@ -30,6 +31,9 @@ interface BanterGenerator {
      * Returns null if no banter is appropriate or generator is unavailable.
      */
     suspend fun generateBanter(context: GameContext): String?
+
+    /** Reset internal state between games to prevent context leaks. */
+    suspend fun reset() {}
 }
 
 /**

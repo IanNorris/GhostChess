@@ -25,6 +25,7 @@ class GemmaBanterEngine(
 
     private var llmInference: LlmInference? = null
     private val inferenceMutex = Mutex()
+    private var appContext: android.content.Context? = null
 
     override val isReady: Boolean
         get() = modelManager.status.value == ModelStatus.READY
@@ -35,6 +36,7 @@ class GemmaBanterEngine(
      */
     suspend fun initialize(context: android.content.Context) {
         if (modelManager.status.value != ModelStatus.READY) return
+        appContext = context.applicationContext
         withContext(Dispatchers.IO) {
             try {
                 val options = LlmInference.LlmInferenceOptions.builder()
@@ -51,6 +53,24 @@ class GemmaBanterEngine(
     fun shutdown() {
         llmInference?.close()
         llmInference = null
+    }
+
+    /**
+     * Reset the LLM session to prevent context leaks between games.
+     * Destroys and recreates the inference instance.
+     */
+    override suspend fun reset() {
+        val ctx = appContext ?: return
+        inferenceMutex.withLock {
+            llmInference?.close()
+            llmInference = null
+        }
+        initialize(ctx)
+    }
+
+    suspend fun resetSession(context: android.content.Context) {
+        appContext = context.applicationContext
+        reset()
     }
 
     override suspend fun generateBanter(context: GameContext): String? {
@@ -82,18 +102,73 @@ class GemmaBanterEngine(
 
     private fun buildPrompt(context: GameContext): String {
         val eventDesc = describeEvent(context.event)
-        val thinkingContext = context.engineThinking?.let { "\nComputer analysis: $it" } ?: ""
-        val evalContext = context.evaluation?.let {
-            val sign = if (it > 0) "+" else ""
-            "\nPosition evaluation: $sign${formatEval(it)}"
-        } ?: ""
+        val moveDesc = describeMoveDetail(context)
+        val boardState = context.board.toFen().split(" ").first() // piece placement only
+        val materialInfo = describeMaterial(context.board, context.playerColor)
+        val moveNum = context.moveNumber
 
-        return """You are a witty, sarcastic chess commentator. Generate ONE short, funny remark (max 20 words) about this chess moment. Be playful and entertaining. Do not explain the move technically.
+        return """You are a witty chess commentator providing SHORT spoken remarks during a game. Keep it fun and relevant to what just happened on the board.
 
-Game situation: $eventDesc$thinkingContext$evalContext
-Move number: ${context.moveNumber}
+Rules: ONE sentence only, max 15 words. Be funny, dramatic, or sarcastic about THIS specific move. No existential commentary. Reference the actual pieces and squares when possible.
 
-Your witty remark:"""
+Move $moveNum: $eventDesc
+$moveDesc
+Board (FEN): $boardState
+$materialInfo
+
+Your remark:"""
+    }
+
+    private fun describeMoveDetail(context: GameContext): String {
+        val move = context.lastMove ?: return ""
+        val boardBefore = context.boardBefore ?: return "Move: ${move.from.toAlgebraic()} → ${move.to.toAlgebraic()}"
+        val piece = boardBefore[move.from]
+        val pieceName = piece?.type?.name?.lowercase()?.replaceFirstChar { it.uppercase() } ?: "Piece"
+        val captured = boardBefore[move.to]
+        val who = when (context.event) {
+            is GameEvent.PlayerMoved -> "Player"
+            is GameEvent.ComputerMoved -> "Computer"
+            is GameEvent.PieceCaptured -> if ((context.event as GameEvent.PieceCaptured).isPlayerCapture) "Player" else "Computer"
+            else -> if (piece?.color == context.playerColor) "Player" else "Computer"
+        }
+
+        val base = "$who moved $pieceName from ${move.from.toAlgebraic()} to ${move.to.toAlgebraic()}"
+        val captureInfo = if (captured != null) ", capturing ${captured.type.name.lowercase()}" else ""
+        val promoInfo = if (move.promotion != null) ", promoting to ${move.promotion!!.name.lowercase()}" else ""
+        return base + captureInfo + promoInfo
+    }
+
+    private fun describeMaterial(board: Board, playerColor: PieceColor): String {
+        val playerPieces = board.allPieces(playerColor)
+        val opponentPieces = board.allPieces(playerColor.opposite())
+        val playerMat = materialValue(playerPieces)
+        val opponentMat = materialValue(opponentPieces)
+        val diff = playerMat - opponentMat
+        val status = when {
+            diff > 5 -> "Player is winning decisively"
+            diff > 2 -> "Player has a solid advantage"
+            diff > 0 -> "Player is slightly ahead"
+            diff == 0 -> "Material is even"
+            diff > -2 -> "Computer is slightly ahead"
+            diff > -5 -> "Computer has a solid advantage"
+            else -> "Computer is winning decisively"
+        }
+        return "Material: Player ${playerMat}pts vs Computer ${opponentMat}pts — $status"
+    }
+
+    private fun materialValue(pieces: List<Pair<chess.core.Square, chess.core.Piece>>): Int {
+        var total = 0
+        for ((_, piece) in pieces) {
+            total += when (piece.type) {
+                chess.core.PieceType.PAWN -> 1
+                chess.core.PieceType.KNIGHT -> 3
+                chess.core.PieceType.BISHOP -> 3
+                chess.core.PieceType.ROOK -> 5
+                chess.core.PieceType.QUEEN -> 9
+                chess.core.PieceType.KING -> 0
+            }
+        }
+        return total
     }
 
     private fun describeEvent(event: GameEvent): String = when (event) {

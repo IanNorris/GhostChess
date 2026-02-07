@@ -19,22 +19,34 @@ class GameCommentator(
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.Default)
 ) {
     private var currentBoard: Board = Board.initial()
+    private var previousBoard: Board? = null
+    private var lastMove: Move? = null
     private var moveNumber: Int = 0
 
     fun onGameStart(playingAsBlack: Boolean) {
         moveNumber = 0
+        previousBoard = null
+        lastMove = null
+        // Reset banter generator state between games
+        banterGenerator?.let { banter ->
+            scope.launch { banter.reset() }
+        }
         val event = if (playingAsBlack) GameEvent.GameStartedAsBlack else GameEvent.GameStarted
         speakEvent(event)
     }
 
     fun onPlayerMove(move: Move, boardBefore: Board, boardAfter: Board) {
         moveNumber++
+        previousBoard = boardBefore
+        lastMove = move
         currentBoard = boardAfter
         val events = GameEventDetector.detectMoveEvents(move, boardBefore, boardAfter, playerColor, isPlayerMove = true)
         speakEvents(events)
     }
 
     fun onComputerMove(move: Move, boardBefore: Board, boardAfter: Board) {
+        previousBoard = boardBefore
+        lastMove = move
         currentBoard = boardAfter
         val events = GameEventDetector.detectMoveEvents(move, boardBefore, boardAfter, playerColor, isPlayerMove = false)
         speakEvents(events)
@@ -79,6 +91,8 @@ class GameCommentator(
                 val context = GameContext(
                     event = primaryEvent,
                     board = currentBoard,
+                    boardBefore = previousBoard,
+                    lastMove = lastMove,
                     playerColor = playerColor,
                     moveNumber = moveNumber
                 )
