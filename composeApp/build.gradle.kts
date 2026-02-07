@@ -40,6 +40,10 @@ android {
     namespace = "chess.simulator"
     compileSdk = 35
 
+    androidResources {
+        noCompress += "task"
+    }
+
     defaultConfig {
         applicationId = "chess.simulator"
         minSdk = 26

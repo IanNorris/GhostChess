@@ -60,9 +60,14 @@ class GemmaModelManager(private val context: Context) {
         withContext(Dispatchers.IO) {
             try {
                 val tempFile = File(context.filesDir, "$MODEL_FILENAME.tmp")
-                val assetFd = context.assets.openFd(MODEL_FILENAME)
-                val totalBytes = assetFd.length
-                assetFd.close()
+
+                // Use openFd to get exact size (requires noCompress in build.gradle)
+                val totalBytes = try {
+                    val fd = context.assets.openFd(MODEL_FILENAME)
+                    val len = fd.length
+                    fd.close()
+                    len
+                } catch (_: Exception) { -1L }
 
                 var copiedBytes = 0L
                 context.assets.open(MODEL_FILENAME).use { input ->
