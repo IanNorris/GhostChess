@@ -1,5 +1,6 @@
 package chess.ai
 
+import android.util.Log
 import chess.core.Board
 import chess.core.Move
 import chess.core.PieceColor
@@ -24,12 +25,15 @@ class GemmaBanterEngine(
     private val fallback: BanterGenerator = TemplateBanterGenerator()
 ) : BanterGenerator {
 
+    companion object {
+        private const val TAG = "GemmaBanter"
+    }
+
     @Volatile
     private var llmInference: LlmInference? = null
     private val inferenceMutex = Mutex()
     private var appContext: android.content.Context? = null
 
-    // Thread-safe conversation history
     private val conversationHistory = java.util.concurrent.CopyOnWriteArrayList<ConversationTurn>()
 
     private data class ConversationTurn(val role: String, val content: String)
@@ -38,8 +42,12 @@ class GemmaBanterEngine(
         get() = modelManager.status.value == ModelStatus.READY
 
     suspend fun initialize(context: android.content.Context) {
-        if (modelManager.status.value != ModelStatus.READY) return
+        if (modelManager.status.value != ModelStatus.READY) {
+            Log.d(TAG, "initialize: model not ready, status=${modelManager.status.value}")
+            return
+        }
         appContext = context.applicationContext
+        Log.d(TAG, "initialize: creating LlmInference...")
         withContext(Dispatchers.IO) {
             try {
                 val options = LlmInference.LlmInferenceOptions.builder()
@@ -47,22 +55,38 @@ class GemmaBanterEngine(
                     .setMaxTokens(256)
                     .build()
                 llmInference = LlmInference.createFromOptions(context, options)
+                Log.d(TAG, "initialize: LlmInference created successfully")
             } catch (e: Exception) {
+                Log.e(TAG, "initialize: failed to create LlmInference", e)
                 llmInference = null
             }
         }
     }
 
     fun shutdown() {
-        llmInference?.close()
+        Log.d(TAG, "shutdown")
+        try {
+            llmInference?.close()
+        } catch (e: Exception) {
+            Log.e(TAG, "shutdown: error closing LlmInference", e)
+        }
         llmInference = null
     }
 
     override suspend fun reset() {
+        Log.d(TAG, "reset: clearing history (${conversationHistory.size} turns)")
         conversationHistory.clear()
-        val ctx = appContext ?: return
+        val ctx = appContext ?: run {
+            Log.w(TAG, "reset: no appContext, skipping LLM reset")
+            return
+        }
         inferenceMutex.withLock {
-            try { llmInference?.close() } catch (_: Exception) {}
+            try {
+                llmInference?.close()
+                Log.d(TAG, "reset: closed old LlmInference")
+            } catch (e: Exception) {
+                Log.e(TAG, "reset: error closing LlmInference", e)
+            }
             llmInference = null
         }
         initialize(ctx)
@@ -74,44 +98,64 @@ class GemmaBanterEngine(
     }
 
     override suspend fun generateBanter(context: GameContext): String? {
-        val llm = llmInference ?: return fallback.generateBanter(context)
+        val llm = llmInference
+        if (llm == null) {
+            Log.d(TAG, "generateBanter: llmInference is null, using fallback")
+            return fallback.generateBanter(context)
+        }
 
-        // Skip if already generating — don't block, just use fallback
-        if (!inferenceMutex.tryLock()) return fallback.generateBanter(context)
+        if (!inferenceMutex.tryLock()) {
+            Log.d(TAG, "generateBanter: mutex locked (inference in progress), using fallback")
+            return fallback.generateBanter(context)
+        }
+
+        Log.d(TAG, "generateBanter: starting for move ${context.moveNumber}, event=${context.event::class.simpleName}")
 
         return try {
             val userMessage = buildUserMessage(context)
             conversationHistory.add(ConversationTurn("user", userMessage))
+            Log.d(TAG, "generateBanter: history size=${conversationHistory.size}")
 
             val prompt = buildConversationPrompt()
+            Log.d(TAG, "generateBanter: prompt length=${prompt.length}")
 
             withContext(Dispatchers.IO) {
                 withTimeoutOrNull(15_000L) {
                     try {
-                        // Re-check — may have been closed by reset() while we waited
                         if (llmInference == null) {
+                            Log.w(TAG, "generateBanter: llmInference became null, using fallback")
                             conversationHistory.removeLastOrNull()
                             return@withTimeoutOrNull fallback.generateBanter(context)
                         }
+                        Log.d(TAG, "generateBanter: calling generateResponse...")
                         val response = llm.generateResponse(prompt)
+                        Log.d(TAG, "generateBanter: got response, length=${response?.length ?: 0}")
                         val cleaned = cleanResponse(response)
                         if (cleaned.isNullOrBlank()) {
+                            Log.d(TAG, "generateBanter: cleaned response blank, using fallback")
                             conversationHistory.removeLastOrNull()
                             fallback.generateBanter(context)
                         } else {
+                            Log.d(TAG, "generateBanter: success: \"$cleaned\"")
                             conversationHistory.add(ConversationTurn("assistant", cleaned))
                             trimHistory()
                             cleaned
                         }
                     } catch (e: Exception) {
+                        Log.e(TAG, "generateBanter: generateResponse threw", e)
                         conversationHistory.removeLastOrNull()
                         fallback.generateBanter(context)
                     }
                 } ?: run {
+                    Log.w(TAG, "generateBanter: timed out after 15s, using fallback")
                     conversationHistory.removeLastOrNull()
                     fallback.generateBanter(context)
                 }
             }
+        } catch (e: Exception) {
+            Log.e(TAG, "generateBanter: outer exception", e)
+            conversationHistory.removeLastOrNull()
+            fallback.generateBanter(context)
         } finally {
             inferenceMutex.unlock()
         }

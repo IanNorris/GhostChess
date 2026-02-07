@@ -72,6 +72,22 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Global crash handler — writes crash log to internal storage
+        val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            try {
+                val logFile = java.io.File(filesDir, "crash_log.txt")
+                val timestamp = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(java.util.Date())
+                logFile.appendText("=== CRASH $timestamp ===\n")
+                logFile.appendText("Thread: ${thread.name}\n")
+                logFile.appendText(throwable.stackTraceToString())
+                logFile.appendText("\n\n")
+                android.util.Log.e("GhostChess", "UNCAUGHT EXCEPTION", throwable)
+            } catch (_: Exception) {}
+            defaultHandler?.uncaughtException(thread, throwable)
+        }
+
         speechEngine = AndroidSpeechEngine(this)
         val settingsStore = AndroidSettingsStore(this)
         val modelManager = GemmaModelManager(this)
@@ -183,6 +199,40 @@ fun GemmaBanterSettings(
                     modifier = Modifier.testTag("delete-ai-btn")
                 ) {
                     Text("Delete Model", color = ChessColors.OnSurface, fontSize = 12.sp)
+                }
+
+                // Crash log viewer
+                var crashLog by remember { mutableStateOf<String?>(null) }
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = {
+                        val logFile = java.io.File(context.filesDir, "crash_log.txt")
+                        crashLog = if (logFile.exists()) {
+                            logFile.readText().takeLast(2000)
+                        } else {
+                            "No crash log found"
+                        }
+                    }
+                ) {
+                    Text("View Crash Log", color = ChessColors.OnSurface, fontSize = 12.sp)
+                }
+                crashLog?.let { log ->
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        log,
+                        color = ChessColors.OnSurface.copy(alpha = 0.6f),
+                        fontSize = 10.sp,
+                        maxLines = 30,
+                        modifier = Modifier.padding(4.dp)
+                    )
+                    OutlinedButton(
+                        onClick = {
+                            java.io.File(context.filesDir, "crash_log.txt").delete()
+                            crashLog = "Log cleared"
+                        }
+                    ) {
+                        Text("Clear Log", color = ChessColors.OnSurface, fontSize = 12.sp)
+                    }
                 }
             }
             ModelStatus.ERROR -> {

@@ -2,8 +2,10 @@ package chess.speech
 
 import chess.core.*
 import chess.engine.ChessEngine
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
 /**
@@ -17,7 +19,12 @@ class GameCommentator(
     private val commentary: CommentaryGenerator = CommentaryGenerator(),
     private val playerColor: PieceColor = PieceColor.WHITE,
     private val banterGenerator: BanterGenerator? = null,
-    private val scope: CoroutineScope = CoroutineScope(Dispatchers.Default),
+    private val scope: CoroutineScope = CoroutineScope(
+        SupervisorJob() + Dispatchers.Default + CoroutineExceptionHandler { _, throwable ->
+            println("GameCommentator coroutine exception: ${throwable.message}")
+            throwable.printStackTrace()
+        }
+    ),
     private val engine: ChessEngine? = null
 ) {
     private var currentBoard: Board = Board.initial()
