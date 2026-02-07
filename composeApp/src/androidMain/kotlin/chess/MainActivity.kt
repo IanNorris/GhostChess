@@ -201,37 +201,44 @@ fun GemmaBanterSettings(
                     Text("Delete Model", color = ChessColors.OnSurface, fontSize = 12.sp)
                 }
 
-                // Crash log viewer
-                var crashLog by remember { mutableStateOf<String?>(null) }
+                // Diagnostics log viewer
+                var logContents by remember { mutableStateOf<String?>(null) }
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedButton(
                     onClick = {
-                        val logFile = java.io.File(context.filesDir, "crash_log.txt")
-                        crashLog = if (logFile.exists()) {
-                            logFile.readText().takeLast(2000)
-                        } else {
-                            "No crash log found"
+                        val gemmaLog = java.io.File(context.filesDir, "gemma_log.txt")
+                        val crashLog = java.io.File(context.filesDir, "crash_log.txt")
+                        val sb = StringBuilder()
+                        if (crashLog.exists()) {
+                            sb.appendLine("=== CRASH LOG ===")
+                            sb.appendLine(crashLog.readText().takeLast(1000))
                         }
+                        if (gemmaLog.exists()) {
+                            sb.appendLine("=== GEMMA LOG (last 1000 chars) ===")
+                            sb.appendLine(gemmaLog.readText().takeLast(1000))
+                        }
+                        logContents = if (sb.isEmpty()) "No logs found" else sb.toString()
                     }
                 ) {
-                    Text("View Crash Log", color = ChessColors.OnSurface, fontSize = 12.sp)
+                    Text("View Logs", color = ChessColors.OnSurface, fontSize = 12.sp)
                 }
-                crashLog?.let { log ->
+                logContents?.let { log ->
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         log,
                         color = ChessColors.OnSurface.copy(alpha = 0.6f),
                         fontSize = 10.sp,
-                        maxLines = 30,
+                        maxLines = 40,
                         modifier = Modifier.padding(4.dp)
                     )
                     OutlinedButton(
                         onClick = {
                             java.io.File(context.filesDir, "crash_log.txt").delete()
-                            crashLog = "Log cleared"
+                            java.io.File(context.filesDir, "gemma_log.txt").delete()
+                            logContents = "Logs cleared"
                         }
                     ) {
-                        Text("Clear Log", color = ChessColors.OnSurface, fontSize = 12.sp)
+                        Text("Clear Logs", color = ChessColors.OnSurface, fontSize = 12.sp)
                     }
                 }
             }
