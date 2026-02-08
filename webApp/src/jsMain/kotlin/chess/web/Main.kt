@@ -55,6 +55,7 @@ var playerColor = PieceColor.WHITE
 var ghostDepth = 5
 var showThinking = false
 var difficulty = Difficulty.LEVEL_6
+var showThreats = false
 
 // Move timer
 var moveStartTime = 0.0
@@ -110,6 +111,7 @@ fun saveSettings() {
     window.localStorage.setItem("ghostchess_thinking", showThinking.toString())
     window.localStorage.setItem("ghostchess_difficulty", difficulty.name)
     window.localStorage.setItem("ghostchess_speech", speechEngine.enabled.toString())
+    window.localStorage.setItem("ghostchess_threats", showThreats.toString())
 }
 
 fun loadSettings() {
@@ -130,6 +132,9 @@ fun loadSettings() {
     }
     window.localStorage.getItem("ghostchess_speech")?.let {
         speechEngine.enabled = it == "true"
+    }
+    window.localStorage.getItem("ghostchess_threats")?.let {
+        showThreats = it == "true"
     }
 }
 
@@ -205,6 +210,10 @@ fun setupMenu() {
     val speechToggle = document.getElementById("speech-toggle") as HTMLInputElement
     speechToggle.onchange = { speechEngine.enabled = speechToggle.checked; saveSettings(); null }
 
+    // Threats toggle
+    val threatsToggle = document.getElementById("threats-toggle") as HTMLInputElement
+    threatsToggle.onchange = { showThreats = threatsToggle.checked; saveSettings(); renderBoard(); null }
+
     // Restore UI from loaded settings
     updateModeChips()
     updateColorChips()
@@ -213,6 +222,7 @@ fun setupMenu() {
     depthLabel.textContent = "Preview depth: $ghostDepth moves"
     thinkingToggle.checked = showThinking
     speechToggle.checked = speechEngine.enabled
+    threatsToggle.checked = showThreats
 
     // Win/loss display
     updateWinLossDisplay()
@@ -220,7 +230,7 @@ fun setupMenu() {
     // Start game
     document.getElementById("start-game-btn")!!.addEventListener("click", {
         flipped = playerColor == PieceColor.BLACK
-        val config = GameConfig(gameMode, playerColor, ghostDepth, showThinking, difficulty)
+        val config = GameConfig(gameMode, playerColor, ghostDepth, showThinking, difficulty, showThreats)
         val engine = SimpleEngine()
         session = GameSession(engine, config)
         commentator = GameCommentator(speechEngine, playerColor = playerColor)
@@ -393,6 +403,25 @@ fun renderBoard() {
             val classes = mutableListOf("square", if (isLight) "light" else "dark")
 
             if (square == selectedSquare) classes.add("selected")
+
+            // Threat highlights
+            if (showThreats && piece != null) {
+                val s = session
+                if (s != null) {
+                    val pColor = s.config.playerColor
+                    if (piece.color == pColor && piece.type != PieceType.KING) {
+                        if (MoveGenerator.isSquareAttacked(board, square, pColor.opposite())) {
+                            classes.add("player-threat")
+                        }
+                    } else if (piece.color == pColor.opposite() && piece.type != PieceType.KING) {
+                        val attacked = MoveGenerator.isSquareAttacked(board, square, pColor)
+                        val defended = MoveGenerator.isSquareAttacked(board, square, pColor.opposite())
+                        if (attacked && !defended) {
+                            classes.add("opponent-vulnerable")
+                        }
+                    }
+                }
+            }
 
             // Check highlight
             if (piece?.type == PieceType.KING && piece.color == board.activeColor &&

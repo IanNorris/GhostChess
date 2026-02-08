@@ -525,6 +525,61 @@ object BanterLines {
         "Free {piece} on the board and you passed it up!"
     )
 
+    // === FORK (player forks computer) ===
+    val forkByPlayer = listOf(
+        "A fork! You're attacking two pieces at once!",
+        "Nice fork! I can't save both pieces.",
+        "That's a nasty fork. Well played!",
+        "You've forked me! Something's going to fall.",
+        "A double attack! I'm in trouble here.",
+        "Fork! That's a strong tactical move.",
+        "You've got my pieces in a bind. Great fork!",
+        "That fork is devastating. I can't defend everything.",
+        "Two pieces under fire! Excellent fork.",
+        "A textbook fork! I'm going to lose material."
+    )
+
+    // === FORK (computer forks player) ===
+    val forkByComputer = listOf(
+        "Fork! I'm attacking two of your pieces at once.",
+        "My {piece} is forking your pieces. Something has to give!",
+        "That's a double attack. You can't save everything!",
+        "I've forked you! Choose which piece to lose.",
+        "Fork! My {piece} is causing chaos.",
+        "A sneaky fork from my {piece}. You're in trouble!",
+        "Double attack! You'll have to sacrifice something.",
+        "I've set up a fork. Which piece will you save?",
+        "My {piece} is attacking two targets at once!",
+        "Fork! This is going to cost you material."
+    )
+
+    // === WIN GUARANTEED (engine thinks win is inevitable) ===
+    val winGuaranteedPlayer = listOf(
+        "I think this is over. You've won this one.",
+        "There's no coming back from here. Well played!",
+        "You've got a winning position. I can't see a way out.",
+        "This game is yours. Impressive!",
+        "I'm beaten. Just a matter of time now.",
+        "You've outplayed me. The position is hopeless.",
+        "I can resign gracefully here. You've won.",
+        "No saving this game. You played brilliantly.",
+        "The writing's on the wall. Victory is yours!",
+        "I'm lost. Congratulations on the win!"
+    )
+
+    val winGuaranteedComputer = listOf(
+        "I think I've got this one wrapped up.",
+        "The position is decisive. I can see the win.",
+        "There's no escape now. I'm winning this.",
+        "This game is mine. Better luck next time!",
+        "I've locked down the win. It's just technique from here.",
+        "The position is overwhelming. I can't lose from here.",
+        "Victory is in sight. You fought well though!",
+        "I've got a winning advantage. Time to close it out.",
+        "This one's over. Good game!",
+        "The position speaks for itself. I'm winning."
+    )
+
     // === ILLEGAL MOVE ATTEMPTS ===
     val illegalMoveInCheck = listOf(
         "You can't move that - you're in check!",

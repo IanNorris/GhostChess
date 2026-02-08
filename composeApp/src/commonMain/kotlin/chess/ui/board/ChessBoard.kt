@@ -54,6 +54,8 @@ fun ChessBoard(
     legalMoves: List<Move> = emptyList(),
     ghostState: GhostPreviewState = GhostPreviewState(),
     flipped: Boolean = false,
+    threatSquares: Set<Square> = emptySet(),
+    vulnerableSquares: Set<Square> = emptySet(),
     onSquareClick: (Square) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -144,6 +146,8 @@ fun ChessBoard(
                             isSelected -> ChessColors.SelectedSquare
                             isCheck -> ChessColors.CheckHighlight
                             isGhostDiff -> if (isLightSquare) ChessColors.GhostMoveTo else ChessColors.GhostMoveFrom
+                            square in threatSquares -> ChessColors.PlayerThreat
+                            square in vulnerableSquares -> ChessColors.OpponentVulnerable
                             isLightSquare -> ChessColors.LightSquare
                             else -> ChessColors.DarkSquare
                         }

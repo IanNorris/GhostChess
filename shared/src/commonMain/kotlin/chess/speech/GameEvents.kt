@@ -27,6 +27,8 @@ sealed class GameEvent {
     data class AdvantageShift(val playerLeading: Boolean, val evalDelta: Double) : GameEvent()
     data class HangingPiece(val pieceType: PieceType, val square: Square, val isPlayerPiece: Boolean) : GameEvent()
     data class UnclaimedCapture(val pieceType: PieceType, val square: Square) : GameEvent()
+    data class Fork(val attackerType: PieceType, val attackerSquare: Square, val targets: List<PieceType>, val isPlayerFork: Boolean) : GameEvent()
+    data class WinGuaranteed(val playerWinning: Boolean, val eval: Double) : GameEvent()
     data class IllegalMoveAttempt(val inCheck: Boolean) : GameEvent()
 }
 
@@ -148,6 +150,31 @@ object GameEventDetector {
             }
             if (bestUnclaimed != null) {
                 events.add(bestUnclaimed)
+            }
+        }
+
+        // Fork detection: check if the piece that just moved now attacks 2+ valuable enemy pieces
+        val landingPiece = boardAfter[move.to]
+        if (landingPiece != null && landingPiece.type != PieceType.KING) {
+            val enemyColor = if (movingColor == PieceColor.WHITE) PieceColor.BLACK else PieceColor.WHITE
+            val threatenedPieces = mutableListOf<PieceType>()
+            for ((sq, piece) in boardAfter.allPieces(enemyColor)) {
+                if (piece.type == PieceType.PAWN) continue
+                if (MoveGenerator.isSquareAttacked(boardAfter, sq, movingColor)) {
+                    // Check this specific piece is attacked by the moved piece's square
+                    val defended = MoveGenerator.isSquareAttacked(boardAfter, sq, enemyColor)
+                    if (!defended || pieceValue(piece.type) > pieceValue(landingPiece.type)) {
+                        threatenedPieces.add(piece.type)
+                    }
+                }
+            }
+            if (threatenedPieces.size >= 2) {
+                events.add(GameEvent.Fork(
+                    attackerType = landingPiece.type,
+                    attackerSquare = move.to,
+                    targets = threatenedPieces,
+                    isPlayerFork = isPlayerMove
+                ))
             }
         }
 

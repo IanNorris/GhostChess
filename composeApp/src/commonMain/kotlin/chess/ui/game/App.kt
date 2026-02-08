@@ -100,6 +100,7 @@ fun MenuScreen(onStartGame: (GameConfig) -> Unit, speechEngine: SpeechEngine = N
         )
     }
     var speechEnabled by remember { mutableStateOf(settingsStore.getString("speech") == "true") }
+    var showThreats by remember { mutableStateOf(settingsStore.getString("threats") == "true") }
 
     fun saveSettings() {
         settingsStore.putString("mode", selectedMode.name)
@@ -108,6 +109,7 @@ fun MenuScreen(onStartGame: (GameConfig) -> Unit, speechEngine: SpeechEngine = N
         settingsStore.putString("depth", ghostDepth.toString())
         settingsStore.putString("difficulty", difficulty.name)
         settingsStore.putString("speech", speechEnabled.toString())
+        settingsStore.putString("threats", showThreats.toString())
     }
 
     Column(
@@ -229,6 +231,20 @@ fun MenuScreen(onStartGame: (GameConfig) -> Unit, speechEngine: SpeechEngine = N
             )
         }
 
+        // Show threats toggle
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.testTag("threats-toggle-row")
+        ) {
+            Text("Show pieces under threat", color = ChessColors.OnSurface, fontSize = 14.sp)
+            Spacer(modifier = Modifier.width(8.dp))
+            Switch(
+                checked = showThreats,
+                onCheckedChange = { showThreats = it; saveSettings() },
+                modifier = Modifier.testTag("threats-toggle")
+            )
+        }
+
         Spacer(modifier = Modifier.height(32.dp))
 
         Button(
@@ -240,7 +256,8 @@ fun MenuScreen(onStartGame: (GameConfig) -> Unit, speechEngine: SpeechEngine = N
                         playerColor = playerColor,
                         ghostDepth = ghostDepth,
                         showEngineThinking = showThinking,
-                        difficulty = difficulty
+                        difficulty = difficulty,
+                        showThreats = showThreats
                     )
                 )
             },
@@ -270,6 +287,42 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
     var whiteElapsedSecs by remember { mutableIntStateOf(0) }
     var blackElapsedSecs by remember { mutableIntStateOf(0) }
     var capturedState by remember { mutableStateOf(capturedTracker.getState()) }
+
+    // Compute threatened squares when showThreats is enabled
+    val threatSquares = remember(gameState, config.showThreats) {
+        if (!config.showThreats) emptySet()
+        else {
+            val board = gameState.board
+            val playerColor = config.playerColor
+            val opponentColor = playerColor.opposite()
+            val threatened = mutableSetOf<Square>()
+            for ((sq, piece) in board.allPieces(playerColor)) {
+                if (piece.type == PieceType.KING) continue
+                if (MoveGenerator.isSquareAttacked(board, sq, opponentColor)) {
+                    threatened.add(sq)
+                }
+            }
+            threatened
+        }
+    }
+    val vulnerableSquares = remember(gameState, config.showThreats) {
+        if (!config.showThreats) emptySet()
+        else {
+            val board = gameState.board
+            val playerColor = config.playerColor
+            val opponentColor = playerColor.opposite()
+            val vulnerable = mutableSetOf<Square>()
+            for ((sq, piece) in board.allPieces(opponentColor)) {
+                if (piece.type == PieceType.KING) continue
+                val attacked = MoveGenerator.isSquareAttacked(board, sq, playerColor)
+                val defended = MoveGenerator.isSquareAttacked(board, sq, opponentColor)
+                if (attacked && !defended) {
+                    vulnerable.add(sq)
+                }
+            }
+            vulnerable
+        }
+    }
 
     // Move timer — only counts during current player's turn (human only)
     LaunchedEffect(gamePaused, gameState.status, gameState.board.activeColor) {
@@ -439,6 +492,8 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
                             legalMoves = legalMovesForSelected,
                             ghostState = ghostState,
                             flipped = config.playerColor == PieceColor.BLACK,
+                            threatSquares = threatSquares,
+                            vulnerableSquares = vulnerableSquares,
                             onSquareClick = ::onSquareClick,
                             modifier = Modifier.fillMaxSize()
                         )
@@ -547,6 +602,8 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
                             legalMoves = legalMovesForSelected,
                             ghostState = ghostState,
                             flipped = config.playerColor == PieceColor.BLACK,
+                            threatSquares = threatSquares,
+                            vulnerableSquares = vulnerableSquares,
                             onSquareClick = ::onSquareClick,
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
                         )

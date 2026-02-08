@@ -77,7 +77,8 @@ data class GameConfig(
     val playerColor: PieceColor = PieceColor.WHITE,
     val ghostDepth: Int = 5,
     val showEngineThinking: Boolean = false,
-    val difficulty: Difficulty = Difficulty.LEVEL_6
+    val difficulty: Difficulty = Difficulty.LEVEL_6,
+    val showThreats: Boolean = false
 )
 
 class GameSession(

@@ -18,21 +18,23 @@ class CommentaryGenerator(
         is GameEvent.Stalemate -> 1
         is GameEvent.Check -> 2
         is GameEvent.IllegalMoveAttempt -> 3
-        is GameEvent.OpeningDetected -> 4
-        is GameEvent.PieceCaptured -> 5
-        is GameEvent.Promotion -> 6
-        is GameEvent.Castling -> 7
-        is GameEvent.Blunder -> 8
-        is GameEvent.GoodMove -> 9
-        is GameEvent.AdvantageShift -> 10
-        is GameEvent.HangingPiece -> 11
-        is GameEvent.UnclaimedCapture -> 12
-        is GameEvent.GhostPreviewStarted -> 13
-        is GameEvent.GhostAccepted -> 14
-        is GameEvent.GhostDismissed -> 15
-        is GameEvent.MoveUndone -> 16
-        is GameEvent.GameStarted -> 17
-        is GameEvent.GameStartedAsBlack -> 17
+        is GameEvent.Fork -> 4
+        is GameEvent.OpeningDetected -> 5
+        is GameEvent.PieceCaptured -> 6
+        is GameEvent.Promotion -> 7
+        is GameEvent.Castling -> 8
+        is GameEvent.Blunder -> 9
+        is GameEvent.GoodMove -> 10
+        is GameEvent.WinGuaranteed -> 11
+        is GameEvent.AdvantageShift -> 12
+        is GameEvent.HangingPiece -> 13
+        is GameEvent.UnclaimedCapture -> 14
+        is GameEvent.GhostPreviewStarted -> 15
+        is GameEvent.GhostAccepted -> 16
+        is GameEvent.GhostDismissed -> 17
+        is GameEvent.MoveUndone -> 18
+        is GameEvent.GameStarted -> 19
+        is GameEvent.GameStartedAsBlack -> 19
         is GameEvent.PlayerMoved -> 99
         is GameEvent.ComputerMoved -> 99
     }
@@ -45,6 +47,11 @@ class CommentaryGenerator(
         is GameEvent.Check ->
             if (event.isPlayerChecked) BanterLines.pick(BanterLines.check)
             else BanterLines.pick(BanterLines.checkByPlayer)
+        is GameEvent.Fork -> {
+            val params = mapOf("piece" to BanterLines.pieceName(event.attackerType))
+            if (event.isPlayerFork) BanterLines.pick(BanterLines.forkByPlayer, params)
+            else BanterLines.pick(BanterLines.forkByComputer, params)
+        }
         is GameEvent.IllegalMoveAttempt ->
             if (event.inCheck) BanterLines.pick(BanterLines.illegalMoveInCheck)
             else BanterLines.pick(BanterLines.illegalMoveGeneral)
@@ -68,6 +75,9 @@ class CommentaryGenerator(
                 if (event.evalGain > 2.0) BanterLines.pick(BanterLines.greatMove)
                 else BanterLines.pick(BanterLines.goodMove)
             } else null // Don't praise computer's own moves
+        is GameEvent.WinGuaranteed ->
+            if (event.playerWinning) BanterLines.pick(BanterLines.winGuaranteedPlayer)
+            else BanterLines.pick(BanterLines.winGuaranteedComputer)
         is GameEvent.AdvantageShift ->
             if (event.playerLeading) BanterLines.pick(BanterLines.playerTakingLead)
             else BanterLines.pick(BanterLines.computerTakingLead)
