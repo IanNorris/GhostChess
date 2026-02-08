@@ -117,137 +117,154 @@ fun MenuScreen(onStartGame: (GameConfig) -> Unit, speechEngine: SpeechEngine = N
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(24.dp)
+            .safeDrawingPadding()
+            .padding(horizontal = 24.dp, vertical = 16.dp)
             .testTag("menu-screen"),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(modifier = Modifier.height(32.dp))
         Text(
             "♔ Chess Simulator",
             color = ChessColors.OnSurface,
             fontSize = 28.sp,
             modifier = Modifier.testTag("app-title")
         )
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
-        // Game mode
-        Text("Game Mode", color = ChessColors.OnSurface, fontSize = 16.sp)
-        Spacer(modifier = Modifier.height(8.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(
-                selected = selectedMode == GameMode.HUMAN_VS_ENGINE,
-                onClick = { selectedMode = GameMode.HUMAN_VS_ENGINE; saveSettings() },
-                label = { Text("vs Computer") },
-                modifier = Modifier.testTag("mode-vs-engine")
-            )
-            FilterChip(
-                selected = selectedMode == GameMode.HUMAN_VS_HUMAN,
-                onClick = { selectedMode = GameMode.HUMAN_VS_HUMAN; saveSettings() },
-                label = { Text("vs Human") },
-                modifier = Modifier.testTag("mode-vs-human")
-            )
-        }
+        // Two-column layout
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(24.dp)
+        ) {
+            // Left column: Game setup
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Game mode
+                Text("Game Mode", color = ChessColors.OnSurface, fontSize = 16.sp)
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = selectedMode == GameMode.HUMAN_VS_ENGINE,
+                        onClick = { selectedMode = GameMode.HUMAN_VS_ENGINE; saveSettings() },
+                        label = { Text("vs Computer") },
+                        modifier = Modifier.testTag("mode-vs-engine")
+                    )
+                    FilterChip(
+                        selected = selectedMode == GameMode.HUMAN_VS_HUMAN,
+                        onClick = { selectedMode = GameMode.HUMAN_VS_HUMAN; saveSettings() },
+                        label = { Text("vs Human") },
+                        modifier = Modifier.testTag("mode-vs-human")
+                    )
+                }
 
-        Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-        // Player color (vs engine only)
-        if (selectedMode == GameMode.HUMAN_VS_ENGINE) {
-            Text("Play as", color = ChessColors.OnSurface, fontSize = 16.sp)
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(
-                    selected = playerColor == PieceColor.WHITE,
-                    onClick = { playerColor = PieceColor.WHITE; saveSettings() },
-                    label = { Text("White ♔") },
-                    modifier = Modifier.testTag("color-white")
-                )
-                FilterChip(
-                    selected = playerColor == PieceColor.BLACK,
-                    onClick = { playerColor = PieceColor.BLACK; saveSettings() },
-                    label = { Text("Black ♚") },
-                    modifier = Modifier.testTag("color-black")
+                // Player color (vs engine only)
+                if (selectedMode == GameMode.HUMAN_VS_ENGINE) {
+                    Text("Play as", color = ChessColors.OnSurface, fontSize = 16.sp)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(
+                            selected = playerColor == PieceColor.WHITE,
+                            onClick = { playerColor = PieceColor.WHITE; saveSettings() },
+                            label = { Text("White ♔") },
+                            modifier = Modifier.testTag("color-white")
+                        )
+                        FilterChip(
+                            selected = playerColor == PieceColor.BLACK,
+                            onClick = { playerColor = PieceColor.BLACK; saveSettings() },
+                            label = { Text("Black ♚") },
+                            modifier = Modifier.testTag("color-black")
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Difficulty
+                    Text("Difficulty: ${difficulty.label()}", color = ChessColors.OnSurface, fontSize = 16.sp)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Slider(
+                        value = difficulty.level.toFloat(),
+                        onValueChange = { difficulty = Difficulty.fromLevel(it.toInt()); saveSettings() },
+                        valueRange = 1f..12f,
+                        steps = 10,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("difficulty-slider")
+                    )
+                    Text(
+                        text = difficulty.description(),
+                        color = ChessColors.OnSurface.copy(alpha = 0.6f),
+                        fontSize = 12.sp,
+                        modifier = Modifier.testTag("difficulty-description")
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Ghost depth
+                Text("Preview depth: $ghostDepth moves", color = ChessColors.OnSurface, fontSize = 14.sp)
+                Slider(
+                    value = ghostDepth.toFloat(),
+                    onValueChange = { ghostDepth = it.toInt(); saveSettings() },
+                    valueRange = 1f..10f,
+                    steps = 8,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("depth-slider")
                 )
             }
-            Spacer(modifier = Modifier.height(16.dp))
 
-            // Difficulty
-            Text("Difficulty: ${difficulty.label()}", color = ChessColors.OnSurface, fontSize = 16.sp)
-            Spacer(modifier = Modifier.height(8.dp))
-            Slider(
-                value = difficulty.level.toFloat(),
-                onValueChange = { difficulty = Difficulty.fromLevel(it.toInt()); saveSettings() },
-                valueRange = 1f..12f,
-                steps = 10,
-                modifier = Modifier
-                    .width(250.dp)
-                    .testTag("difficulty-slider")
-            )
-            Text(
-                text = difficulty.description(),
-                color = ChessColors.OnSurface.copy(alpha = 0.6f),
-                fontSize = 12.sp,
-                modifier = Modifier.testTag("difficulty-description")
-            )
-            Spacer(modifier = Modifier.height(16.dp))
+            // Right column: Toggles
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text("Options", color = ChessColors.OnSurface, fontSize = 16.sp)
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Coach mode toggle
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth().testTag("thinking-toggle-row")
+                ) {
+                    Text("Enable coach", color = ChessColors.OnSurface, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                    Switch(
+                        checked = showThinking,
+                        onCheckedChange = { showThinking = it; saveSettings() },
+                        modifier = Modifier.testTag("thinking-toggle")
+                    )
+                }
+
+                // Speech toggle
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth().testTag("speech-toggle-row")
+                ) {
+                    Text("Speech commentary", color = ChessColors.OnSurface, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                    Switch(
+                        checked = speechEnabled,
+                        onCheckedChange = { speechEnabled = it; saveSettings() },
+                        modifier = Modifier.testTag("speech-toggle")
+                    )
+                }
+
+                // Show threats toggle
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth().testTag("threats-toggle-row")
+                ) {
+                    Text("Highlight threats", color = ChessColors.OnSurface, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                    Switch(
+                        checked = showThreats,
+                        onCheckedChange = { showThreats = it; saveSettings() },
+                        modifier = Modifier.testTag("threats-toggle")
+                    )
+                }
+            }
         }
 
-        // Ghost depth
-        Text("Preview depth: $ghostDepth moves", color = ChessColors.OnSurface, fontSize = 14.sp)
-        Slider(
-            value = ghostDepth.toFloat(),
-            onValueChange = { ghostDepth = it.toInt(); saveSettings() },
-            valueRange = 1f..10f,
-            steps = 8,
-            modifier = Modifier
-                .width(250.dp)
-                .testTag("depth-slider")
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Coach mode toggle
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.testTag("thinking-toggle-row")
-        ) {
-            Text("Enable coach", color = ChessColors.OnSurface, fontSize = 14.sp)
-            Spacer(modifier = Modifier.width(8.dp))
-            Switch(
-                checked = showThinking,
-                onCheckedChange = { showThinking = it; saveSettings() },
-                modifier = Modifier.testTag("thinking-toggle")
-            )
-        }
-
-        // Speech toggle
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.testTag("speech-toggle-row")
-        ) {
-            Text("Speech commentary", color = ChessColors.OnSurface, fontSize = 14.sp)
-            Spacer(modifier = Modifier.width(8.dp))
-            Switch(
-                checked = speechEnabled,
-                onCheckedChange = { speechEnabled = it; saveSettings() },
-                modifier = Modifier.testTag("speech-toggle")
-            )
-        }
-
-        // Show threats toggle
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.testTag("threats-toggle-row")
-        ) {
-            Text("Highlight threats", color = ChessColors.OnSurface, fontSize = 14.sp)
-            Spacer(modifier = Modifier.width(8.dp))
-            Switch(
-                checked = showThreats,
-                onCheckedChange = { showThreats = it; saveSettings() },
-                modifier = Modifier.testTag("threats-toggle")
-            )
-        }
-
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
         Button(
             onClick = {
@@ -268,6 +285,7 @@ fun MenuScreen(onStartGame: (GameConfig) -> Unit, speechEngine: SpeechEngine = N
         ) {
             Text("Start Game", fontSize = 18.sp)
         }
+        Spacer(modifier = Modifier.height(16.dp))
     }
 }
 
@@ -483,11 +501,11 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(modifier = Modifier.fillMaxSize().safeDrawingPadding()) {
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(start = 8.dp, end = 8.dp, bottom = 8.dp, top = 52.dp)
+                .padding(start = 8.dp, end = 8.dp, bottom = 8.dp, top = 8.dp)
                 .testTag("game-screen")
         ) {
             val isLandscape = maxWidth > maxHeight

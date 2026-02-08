@@ -45,7 +45,7 @@ data class GhostPreviewState(
 
 class GhostPreviewManager(
     private val engine: ChessEngine,
-    private val depth: Int = 5
+    private val lineLength: Int = 5
 ) {
     private var state = GhostPreviewState()
 
@@ -58,11 +58,13 @@ class GhostPreviewManager(
             showThinking = showThinking
         )
 
+        // Use shallow search depth (2) for responsiveness, but build a longer preview line
+        val searchDepth = 2
         val analysis = withContext(Dispatchers.Default) {
-            engine.getBestLine(board.toFen(), depth)
+            engine.getBestLine(board.toFen(), searchDepth, lineLength)
         }
         val thinking = if (showThinking) withContext(Dispatchers.Default) {
-            engine.getThinking(board.toFen(), depth)
+            engine.getThinking(board.toFen(), searchDepth)
         } else null
 
         state = state.copy(

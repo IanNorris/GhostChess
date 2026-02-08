@@ -17,7 +17,7 @@ data class EngineThought(
 )
 
 interface ChessEngine {
-    suspend fun getBestLine(fen: String, depth: Int = 5): EngineAnalysis
+    suspend fun getBestLine(fen: String, depth: Int = 5, lineLength: Int = depth): EngineAnalysis
     suspend fun getThinking(fen: String, depth: Int = 5): EngineThought
     fun isReady(): Boolean
     suspend fun initialize()

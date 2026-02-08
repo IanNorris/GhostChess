@@ -16,7 +16,7 @@ class SimpleEngine : ChessEngine {
         initialized = false
     }
 
-    override suspend fun getBestLine(fen: String, depth: Int): EngineAnalysis {
+    override suspend fun getBestLine(fen: String, depth: Int, lineLength: Int): EngineAnalysis {
         require(initialized) { "Engine not initialized" }
         val board = Board.fromFen(fen)
         val line = mutableListOf<Move>()
@@ -50,7 +50,8 @@ class SimpleEngine : ChessEngine {
             currentBoard = currentBoard.makeMove(bestMove)
 
             // Build the rest of the line (principal variation)
-            repeat(depth - 1) {
+            val remainingMoves = (lineLength - 1).coerceAtLeast(0)
+            repeat(remainingMoves) {
                 val nextMoves = MoveGenerator.generateLegalMoves(currentBoard)
                 if (nextMoves.isEmpty()) return@repeat
                 val nextIsMax = currentBoard.activeColor == PieceColor.WHITE
