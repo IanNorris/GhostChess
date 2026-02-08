@@ -178,6 +178,12 @@ fun MenuScreen(onStartGame: (GameConfig) -> Unit, speechEngine: SpeechEngine = N
                     .width(250.dp)
                     .testTag("difficulty-slider")
             )
+            Text(
+                text = difficulty.description(),
+                color = ChessColors.OnSurface.copy(alpha = 0.6f),
+                fontSize = 12.sp,
+                modifier = Modifier.testTag("difficulty-description")
+            )
             Spacer(modifier = Modifier.height(16.dp))
         }
 
@@ -697,7 +703,7 @@ fun CapturedPiecesDisplay(state: CapturedPiecesTracker.MaterialState, modifier: 
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 4.dp)
+            .padding(horizontal = 8.dp, vertical = 6.dp)
             .testTag("captured-pieces"),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
@@ -705,13 +711,19 @@ fun CapturedPiecesDisplay(state: CapturedPiecesTracker.MaterialState, modifier: 
         // Black's captures (white pieces taken by black)
         Row(
             modifier = Modifier.testTag("black-captures"),
+            verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(2.dp)
         ) {
+            Text(
+                text = "♚",
+                fontSize = 18.sp,
+                color = ChessColors.OnSurface.copy(alpha = 0.5f)
+            )
             for (piece in state.blackCaptured) {
                 Text(
                     text = CapturedPiecesTracker.pieceUnicode(piece, PieceColor.WHITE),
-                    fontSize = 20.sp,
-                    color = ChessColors.OnSurface.copy(alpha = 0.8f)
+                    fontSize = 28.sp,
+                    color = ChessColors.OnSurface.copy(alpha = 0.9f)
                 )
             }
         }
@@ -724,7 +736,7 @@ fun CapturedPiecesDisplay(state: CapturedPiecesTracker.MaterialState, modifier: 
                 adv < 0 -> "⚖️ $adv"
                 else -> "⚖️ ="
             },
-            fontSize = 14.sp,
+            fontSize = 18.sp,
             color = when {
                 adv > 0 -> ChessColors.Primary
                 adv < 0 -> androidx.compose.ui.graphics.Color(0xFFEF5350)
@@ -736,15 +748,21 @@ fun CapturedPiecesDisplay(state: CapturedPiecesTracker.MaterialState, modifier: 
         // White's captures (black pieces taken by white)
         Row(
             modifier = Modifier.testTag("white-captures"),
+            verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             for (piece in state.whiteCaptured) {
                 Text(
                     text = CapturedPiecesTracker.pieceUnicode(piece, PieceColor.BLACK),
-                    fontSize = 20.sp,
-                    color = ChessColors.OnSurface.copy(alpha = 0.8f)
+                    fontSize = 28.sp,
+                    color = ChessColors.OnSurface.copy(alpha = 0.9f)
                 )
             }
+            Text(
+                text = "♔",
+                fontSize = 18.sp,
+                color = ChessColors.OnSurface.copy(alpha = 0.5f)
+            )
         }
     }
 }

@@ -40,6 +40,20 @@ enum class Difficulty(val level: Int) {
         else -> 0.0
     }
 
+    fun description(): String {
+        val depthDesc = "Search depth $searchDepth"
+        val randomDesc = when {
+            randomMoveProbability >= 0.5 -> "50% random moves"
+            randomMoveProbability >= 0.35 -> "35% random moves"
+            randomMoveProbability >= 0.25 -> "25% random moves"
+            randomMoveProbability >= 0.15 -> "15% random moves"
+            randomMoveProbability >= 0.10 -> "10% random moves"
+            randomMoveProbability >= 0.05 -> "5% random moves"
+            else -> "no randomness"
+        }
+        return "$depthDesc, $randomDesc"
+    }
+
     companion object {
         fun fromLevel(n: Int): Difficulty = entries.first { it.level == n.coerceIn(1, 12) }
 

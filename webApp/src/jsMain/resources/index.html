@@ -125,10 +125,10 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 4px 8px;
+            padding: 6px 8px;
             margin-bottom: 4px;
-            font-size: min(4vw, 28px);
-            min-height: 36px;
+            font-size: min(5.5vw, 36px);
+            min-height: 44px;
         }
         .captures-side {
             display: flex;
@@ -136,13 +136,18 @@
             flex-wrap: wrap;
             align-items: center;
         }
+        .captures-label {
+            font-size: min(3.5vw, 18px);
+            opacity: 0.5;
+            margin: 0 4px;
+        }
         .captured-piece {
-            opacity: 0.8;
+            opacity: 0.9;
         }
         #material-balance {
-            font-size: 14px;
+            font-size: 18px;
             font-weight: bold;
-            min-width: 48px;
+            min-width: 56px;
             text-align: center;
         }
 
@@ -293,6 +298,7 @@
         <div class="option-group" id="difficulty-options">
             <label id="difficulty-label">Difficulty: Level 6</label>
             <input type="range" id="difficulty-slider" data-testid="difficulty-slider" min="1" max="12" value="6" step="1" style="width:220px;">
+            <div id="difficulty-description" data-testid="difficulty-description" style="font-size:12px; color:#aaa; margin-top:2px;"></div>
         </div>
 
         <div id="win-loss-display" data-testid="win-loss-display" style="margin-top:12px; font-size:13px; color:#aaa;"></div>
@@ -304,9 +310,9 @@
     <div id="game-screen" data-testid="game-screen">
         <div class="game-left">
             <div id="captured-pieces">
-                <div class="captures-side" id="black-captures" data-testid="black-captures"></div>
+                <div class="captures-side" id="black-captures" data-testid="black-captures"><span class="captures-label">♚</span></div>
                 <div id="material-balance" data-testid="material-balance">⚖️ =</div>
-                <div class="captures-side" id="white-captures" data-testid="white-captures"></div>
+                <div class="captures-side" id="white-captures" data-testid="white-captures"><span class="captures-label">♔</span></div>
             </div>
             <div id="board-wrapper">
                 <div class="rank-col" id="rank-labels"></div>

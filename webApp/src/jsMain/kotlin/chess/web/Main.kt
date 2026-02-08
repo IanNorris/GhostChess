@@ -168,16 +168,19 @@ fun setupMenu() {
     // Difficulty slider
     val diffSlider = document.getElementById("difficulty-slider") as HTMLInputElement
     val diffLabel = document.getElementById("difficulty-label")!!
+    val diffDesc = document.getElementById("difficulty-description")!!
 
     fun updateDifficultySlider() {
         diffSlider.value = difficulty.level.toString()
         diffLabel.textContent = "Difficulty: ${difficulty.label()}"
+        diffDesc.textContent = difficulty.description()
         updateWinLossDisplay()
     }
 
     diffSlider.oninput = {
         difficulty = Difficulty.fromLevel(diffSlider.value.toInt())
         diffLabel.textContent = "Difficulty: ${difficulty.label()}"
+        diffDesc.textContent = difficulty.description()
         updateWinLossDisplay()
         saveSettings()
         null
@@ -565,6 +568,15 @@ fun renderBoard() {
 fun renderCapturedPieces() {
     val state = capturedTracker.getState()
 
+    val blackCapturesEl = document.getElementById("black-captures") ?: return
+    blackCapturesEl.innerHTML = "<span class=\"captures-label\">♚</span>"
+    for (piece in state.blackCaptured) {
+        val span = document.createElement("span") as HTMLElement
+        span.textContent = CapturedPiecesTracker.pieceUnicode(piece, PieceColor.WHITE)
+        span.className = "captured-piece piece-white"
+        blackCapturesEl.appendChild(span)
+    }
+
     val whiteCapturesEl = document.getElementById("white-captures") ?: return
     whiteCapturesEl.innerHTML = ""
     for (piece in state.whiteCaptured) {
@@ -573,15 +585,10 @@ fun renderCapturedPieces() {
         span.className = "captured-piece piece-black"
         whiteCapturesEl.appendChild(span)
     }
-
-    val blackCapturesEl = document.getElementById("black-captures") ?: return
-    blackCapturesEl.innerHTML = ""
-    for (piece in state.blackCaptured) {
-        val span = document.createElement("span") as HTMLElement
-        span.textContent = CapturedPiecesTracker.pieceUnicode(piece, PieceColor.WHITE)
-        span.className = "captured-piece piece-white"
-        blackCapturesEl.appendChild(span)
-    }
+    val whiteLabel = document.createElement("span") as HTMLElement
+    whiteLabel.className = "captures-label"
+    whiteLabel.textContent = "♔"
+    whiteCapturesEl.appendChild(whiteLabel)
 
     val balanceEl = document.getElementById("material-balance") ?: return
     val adv = state.advantage
