@@ -77,7 +77,7 @@ python3 -m http.server 8080
 
 The APK is output to `composeApp/build/outputs/apk/debug/composeApp-debug.apk`.
 
-A pre-built APK is also available at [`chess-simulator-debug.apk`](chess-simulator-debug.apk).
+A pre-built APK is available from the [latest release](https://github.com/IanNorris/GhostChess/releases/latest). You can also trigger a build manually from the **Actions** tab.
 
 ### Run Unit Tests
 
