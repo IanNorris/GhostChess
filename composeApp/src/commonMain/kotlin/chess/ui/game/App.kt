@@ -266,6 +266,7 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
     var legalMovesForSelected by remember { mutableStateOf<List<Move>>(emptyList()) }
     var initialized by remember { mutableStateOf(false) }
     var gamePaused by remember { mutableStateOf(false) }
+    var engineThinking by remember { mutableStateOf(false) }
     var whiteElapsedSecs by remember { mutableIntStateOf(0) }
     var blackElapsedSecs by remember { mutableIntStateOf(0) }
     var capturedState by remember { mutableStateOf(capturedTracker.getState()) }
@@ -298,8 +299,10 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
         if (config.mode == GameMode.HUMAN_VS_ENGINE &&
             config.playerColor == PieceColor.BLACK
         ) {
+            engineThinking = true
             val boardBefore = session.getGameState().board
             session.makeEngineMove()
+            engineThinking = false
             gameState = session.getGameState()
             ghostState = session.getGhostState()
             val engineMove = gameState.moveHistory.last()
@@ -331,7 +334,7 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
     fun onSquareClick(square: Square) {
         if (!initialized || !session.isPlayerTurn()) return
         if (gameState.status != GameStatus.IN_PROGRESS) return
-        if (gamePaused) return
+        if (gamePaused || engineThinking) return
 
         val piece = gameState.board[square]
 
@@ -359,9 +362,11 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
                         gameState.status == GameStatus.IN_PROGRESS &&
                         !session.isPlayerTurn()
                     ) {
+                        engineThinking = true
                         delay(500)
                         val boardBeforeEngine = session.getGameState().board
                         session.makeEngineMove()
+                        engineThinking = false
                         gameState = session.getGameState()
                         val engineMove = gameState.moveHistory.last()
                         // Track engine capture
@@ -437,6 +442,9 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
                             onSquareClick = ::onSquareClick,
                             modifier = Modifier.fillMaxSize()
                         )
+                        if (engineThinking) {
+                            EngineThinkingOverlay()
+                        }
                     }
 
                     // Right panel with controls
@@ -532,15 +540,20 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     CapturedPiecesDisplay(capturedState, modifier = Modifier.padding(horizontal = 8.dp))
-                    ChessBoard(
-                        board = gameState.board,
-                        selectedSquare = selectedSquare,
-                        legalMoves = legalMovesForSelected,
-                        ghostState = ghostState,
-                        flipped = config.playerColor == PieceColor.BLACK,
-                        onSquareClick = ::onSquareClick,
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
-                    )
+                    Box {
+                        ChessBoard(
+                            board = gameState.board,
+                            selectedSquare = selectedSquare,
+                            legalMoves = legalMovesForSelected,
+                            ghostState = ghostState,
+                            flipped = config.playerColor == PieceColor.BLACK,
+                            onSquareClick = ::onSquareClick,
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
+                        )
+                        if (engineThinking) {
+                            EngineThinkingOverlay()
+                        }
+                    }
                     Spacer(modifier = Modifier.height(12.dp))
                     EngineThinkingPanel(state = ghostState, modifier = Modifier.padding(horizontal = 8.dp))
                     Spacer(modifier = Modifier.height(8.dp))
@@ -696,6 +709,30 @@ private fun GhostControls(
         },
         modifier = Modifier.padding(horizontal = 8.dp)
     )
+}
+
+@Composable
+fun EngineThinkingOverlay() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.4f))
+            .testTag("engine-thinking-overlay"),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            CircularProgressIndicator(
+                color = ChessColors.Primary,
+                modifier = Modifier.size(48.dp)
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                "Thinking…",
+                color = ChessColors.OnSurface,
+                fontSize = 16.sp
+            )
+        }
+    }
 }
 
 @Composable

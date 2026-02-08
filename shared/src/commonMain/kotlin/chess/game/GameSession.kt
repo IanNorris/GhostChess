@@ -21,13 +21,11 @@ enum class Difficulty(val level: Int) {
     fun label(): String = "Level $level"
 
     val searchDepth: Int get() = when (level) {
-        in 1..2 -> 1
-        in 3..4 -> 2
-        in 5..6 -> 3
-        in 7..8 -> 4
-        in 9..10 -> 5
-        in 11..12 -> 6
-        else -> 6
+        in 1..3 -> 1
+        in 4..6 -> 2
+        in 7..9 -> 3
+        in 10..12 -> 4
+        else -> 4
     }
 
     /** Chance (0.0–1.0) of picking a random legal move instead of the best one */
@@ -43,7 +41,7 @@ enum class Difficulty(val level: Int) {
     fun description(): String {
         val depthDesc = "Search depth $searchDepth"
         val randomPct = (randomMoveProbability * 100).toInt()
-        val randomDesc = if (randomPct > 0) "$randomPct% random moves" else "no randomness"
+        val randomDesc = if (randomPct > 0) "$randomPct% random moves" else "full strength"
         return "$depthDesc, $randomDesc"
     }
 

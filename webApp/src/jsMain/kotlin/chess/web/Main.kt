@@ -60,6 +60,7 @@ var difficulty = Difficulty.LEVEL_6
 var moveStartTime = 0.0
 var moveTimerInterval: Int? = null
 var gamePaused = false
+var engineThinking = false
 var whiteTimeMs = 0.0
 var blackTimeMs = 0.0
 var lastTimerTick = 0.0
@@ -238,8 +239,10 @@ fun setupMenu() {
 
             // If playing black, engine goes first
             if (gameMode == GameMode.HUMAN_VS_ENGINE && playerColor == PieceColor.BLACK) {
+                showThinkingOverlay()
                 val boardBefore = session!!.getGameState().board
                 session!!.makeEngineMove()
+                hideThinkingOverlay()
                 val boardAfter = session!!.getGameState().board
                 val engineMove = session!!.getGameState().moveHistory.last()
                 // Capture engine move animation
@@ -336,6 +339,16 @@ fun setupMenu() {
     })
 
     setupGhostButtons()
+}
+
+fun showThinkingOverlay() {
+    engineThinking = true
+    document.getElementById("thinking-overlay")?.let { (it as HTMLElement).style.display = "flex" }
+}
+
+fun hideThinkingOverlay() {
+    engineThinking = false
+    document.getElementById("thinking-overlay")?.let { (it as HTMLElement).style.display = "none" }
 }
 
 fun renderBoard() {
@@ -626,7 +639,7 @@ fun renderMoveHistory() {
 
 fun onSquareClick(square: Square) {
     val s = session ?: return
-    if (gamePaused) return
+    if (gamePaused || engineThinking) return
     if (s.getGameState().status != GameStatus.IN_PROGRESS) return
     if (!s.isPlayerTurn()) return
 
@@ -706,8 +719,10 @@ fun executeMove(s: GameSession, move: Move) {
             // Wait for player move animation to complete
             val playerAnimWait = if (animatingMove != null) 700L else 0L
             delay(300 + playerAnimWait)
+            showThinkingOverlay()
             val boardBeforeEngine = s.getGameState().board
             s.makeEngineMove()
+            hideThinkingOverlay()
             val boardAfterEngine = s.getGameState().board
             val engineMove = s.getGameState().moveHistory.last()
             // Track engine capture
