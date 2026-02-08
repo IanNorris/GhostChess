@@ -4,6 +4,14 @@ A chess teaching app with a unique **ghost "perfect play" preview** — after yo
 
 Built with **Kotlin Multiplatform** (Android + Web) using Compose Multiplatform for the Android UI and a DOM-based Kotlin/JS frontend for the web.
 
+## Gameplay Demo
+
+<p align="center">
+  <img src="gameplay-demo.gif" alt="Scholar's Mate gameplay demo" width="360">
+</p>
+
+*Scholar's Mate in 4 moves — showing ghost previews, coaching, and checkmate detection.*
+
 ## Screenshots
 
 | Main Menu | Board | Piece Selected |
