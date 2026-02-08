@@ -7,7 +7,7 @@ Built with **Kotlin Multiplatform** (Android + Web) using Compose Multiplatform 
 ## Gameplay Demo
 
 <p align="center">
-  <img src="gameplay-demo.gif" alt="Scholar's Mate gameplay demo" width="360">
+  <img src="gameplay-demo.webp" alt="Scholar's Mate gameplay demo" width="720">
 </p>
 
 *Scholar's Mate in 4 moves — showing ghost previews, coaching, and checkmate detection.*
