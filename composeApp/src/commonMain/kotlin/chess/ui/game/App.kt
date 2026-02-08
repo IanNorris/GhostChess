@@ -284,6 +284,8 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
     var initialized by remember { mutableStateOf(false) }
     var gamePaused by remember { mutableStateOf(false) }
     var engineThinking by remember { mutableStateOf(false) }
+    var engineAnimMove by remember { mutableStateOf<Move?>(null) }
+    var boardBeforeEngineMove by remember { mutableStateOf<Board?>(null) }
     var whiteElapsedSecs by remember { mutableIntStateOf(0) }
     var blackElapsedSecs by remember { mutableIntStateOf(0) }
     var capturedState by remember { mutableStateOf(capturedTracker.getState()) }
@@ -356,9 +358,12 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
             val boardBefore = session.getGameState().board
             session.makeEngineMove()
             engineThinking = false
+            val engineMove = session.getGameState().moveHistory.last()
+            // Trigger animation before updating gameState
+            boardBeforeEngineMove = boardBefore
+            engineAnimMove = engineMove
             gameState = session.getGameState()
             ghostState = session.getGhostState()
-            val engineMove = gameState.moveHistory.last()
             // Track engine capture
             val engineCapturedPiece = boardBefore[engineMove.to]
             if (engineCapturedPiece != null) {
@@ -420,8 +425,11 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
                         val boardBeforeEngine = session.getGameState().board
                         session.makeEngineMove()
                         engineThinking = false
+                        val engineMove = session.getGameState().moveHistory.last()
+                        // Trigger animation before updating gameState
+                        boardBeforeEngineMove = boardBeforeEngine
+                        engineAnimMove = engineMove
                         gameState = session.getGameState()
-                        val engineMove = gameState.moveHistory.last()
                         // Track engine capture
                         val engineCapturedPiece = boardBeforeEngine[engineMove.to]
                         if (engineCapturedPiece != null) {
@@ -494,6 +502,9 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
                             flipped = config.playerColor == PieceColor.BLACK,
                             threatSquares = threatSquares,
                             vulnerableSquares = vulnerableSquares,
+                            engineAnimMove = engineAnimMove,
+                            boardBeforeEngineMove = boardBeforeEngineMove,
+                            onEngineAnimDone = { engineAnimMove = null; boardBeforeEngineMove = null },
                             onSquareClick = ::onSquareClick,
                             modifier = Modifier.fillMaxSize()
                         )
@@ -604,6 +615,9 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
                             flipped = config.playerColor == PieceColor.BLACK,
                             threatSquares = threatSquares,
                             vulnerableSquares = vulnerableSquares,
+                            engineAnimMove = engineAnimMove,
+                            boardBeforeEngineMove = boardBeforeEngineMove,
+                            onEngineAnimDone = { engineAnimMove = null; boardBeforeEngineMove = null },
                             onSquareClick = ::onSquareClick,
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
                         )

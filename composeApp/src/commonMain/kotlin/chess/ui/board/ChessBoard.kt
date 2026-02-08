@@ -56,6 +56,9 @@ fun ChessBoard(
     flipped: Boolean = false,
     threatSquares: Set<Square> = emptySet(),
     vulnerableSquares: Set<Square> = emptySet(),
+    engineAnimMove: Move? = null,
+    boardBeforeEngineMove: Board? = null,
+    onEngineAnimDone: () -> Unit = {},
     onSquareClick: (Square) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -70,6 +73,12 @@ fun ChessBoard(
     var fadeOutActive by remember { mutableStateOf(false) }
     var prevAnimMove by remember { mutableStateOf<Move?>(null) }
 
+    // Engine move animation state
+    var engineAnimKey by remember { mutableStateOf(0) }
+    var engineAnimating by remember { mutableStateOf(false) }
+    var engineFadeOutActive by remember { mutableStateOf(false) }
+    var prevEngineAnimMove by remember { mutableStateOf<Move?>(null) }
+
     // Detect new ghost step
     LaunchedEffect(ghostState.currentStepIndex, animMove) {
         if (animMove != null && animMove != prevAnimMove) {
@@ -80,11 +89,35 @@ fun ChessBoard(
         }
     }
 
+    // Detect new engine move to animate
+    LaunchedEffect(engineAnimMove) {
+        if (engineAnimMove != null && engineAnimMove != prevEngineAnimMove) {
+            prevEngineAnimMove = engineAnimMove
+            engineAnimKey++
+            engineAnimating = true
+            engineFadeOutActive = false
+        }
+    }
+
+    // Active animation: engine anim takes priority when ghost isn't active
+    val isEngineAnim = engineAnimating || engineFadeOutActive
+    val activeAnimMove = when {
+        animating || fadeOutActive -> animMove
+        isEngineAnim -> engineAnimMove
+        else -> null
+    }
+    val activeAnimBoard = when {
+        animating || fadeOutActive -> ghostState.boardBeforeStep
+        isEngineAnim -> boardBeforeEngineMove
+        else -> null
+    }
+    val isGhostAnim = animating || fadeOutActive
+
     // Determine the board to render for pieces during animation:
     // Hide the piece at the destination (it will be shown by the overlay)
     // and show the piece at the origin from the board-before-step
-    val animFromSquare = if (animating && animMove != null) animMove.from else null
-    val animToSquare = if (animating && animMove != null) animMove.to else null
+    val animFromSquare = if ((animating || engineAnimating) && activeAnimMove != null) activeAnimMove.from else null
+    val animToSquare = if ((animating || engineAnimating) && activeAnimMove != null) activeAnimMove.to else null
     val boardBeforeStep = ghostState.boardBeforeStep
 
     BoxWithConstraints(modifier = modifier.testTag("chess-board")) {
@@ -126,18 +159,21 @@ fun ChessBoard(
                         // remain visible until the moving piece lands on them.
                         // The moving piece itself is hidden here (drawn by the overlay).
                         // During fade-out: hide on-board piece at destination (overlay handles it).
-                        val isAnimOrFade = animating || fadeOutActive
+                        val isGhostAnimOrFade = animating || fadeOutActive
+                        val isEngineAnimOrFade = engineAnimating || engineFadeOutActive
                         val displayPiece = when {
-                            isAnimOrFade && ghostActive && square == animFromSquare ->
-                                null // Moving piece is drawn by overlay
-                            isAnimOrFade && ghostActive && square == animToSquare ->
-                                if (animating) {
-                                    // Show captured piece on-board during movement
-                                    boardBeforeStep?.get(square)
-                                } else {
-                                    // During fade-out, overlay handles the captured piece
-                                    ghostPiece // Show the landing piece (the one that moved here)
-                                }
+                            // Ghost animation
+                            isGhostAnimOrFade && ghostActive && square == animFromSquare ->
+                                null
+                            isGhostAnimOrFade && ghostActive && square == animToSquare ->
+                                if (animating) boardBeforeStep?.get(square)
+                                else ghostPiece
+                            // Engine move animation
+                            isEngineAnimOrFade && !ghostActive && square == animFromSquare ->
+                                null
+                            isEngineAnimOrFade && !ghostActive && square == animToSquare ->
+                                if (engineAnimating) boardBeforeEngineMove?.get(square)
+                                else board[square]
                             ghostActive -> ghostPiece
                             else -> piece
                         }
@@ -318,6 +354,115 @@ fun ChessBoard(
                             fontSize = PIECE_FONT_SIZE.sp,
                             textAlign = TextAlign.Center,
                             color = ChessColors.GhostPiece.copy(alpha = captureAlpha.value),
+                            modifier = Modifier.scale(1f)
+                        )
+                    }
+                }
+            }
+        }
+
+        // Engine move animation overlay (same waypoint system, normal piece colors)
+        if ((engineAnimating || engineFadeOutActive) && engineAnimMove != null && boardBeforeEngineMove != null) {
+            val movingPiece = boardBeforeEngineMove[engineAnimMove.from]
+            val capturedPiece = boardBeforeEngineMove[engineAnimMove.to]
+
+            if (movingPiece != null) {
+                val waypoints = animationWaypoints(engineAnimMove, movingPiece.type)
+
+                val progress = remember(engineAnimKey) { Animatable(0f) }
+                val captureAlpha = remember(engineAnimKey) { Animatable(1f) }
+
+                LaunchedEffect(engineAnimKey) {
+                    progress.snapTo(0f)
+                    captureAlpha.snapTo(1f)
+                    progress.animateTo(
+                        1f,
+                        animationSpec = tween(
+                            durationMillis = ANIM_DURATION_MS * (waypoints.size - 1),
+                            easing = LinearEasing
+                        )
+                    )
+                    engineAnimating = false
+                    if (capturedPiece != null) {
+                        engineFadeOutActive = true
+                        captureAlpha.animateTo(
+                            0f,
+                            animationSpec = tween(durationMillis = 300, easing = LinearEasing)
+                        )
+                        engineFadeOutActive = false
+                    }
+                    onEngineAnimDone()
+                }
+
+                if (engineAnimating) {
+                    val totalSegments = waypoints.size - 1
+                    val rawSegment = progress.value * totalSegments
+                    val segIndex = rawSegment.toInt().coerceIn(0, totalSegments - 1)
+                    val segProgress = (rawSegment - segIndex).coerceIn(0f, 1f)
+
+                    val startFile = waypoints[segIndex].first.toFloat()
+                    val startRank = waypoints[segIndex].second.toFloat()
+                    val endFile = waypoints[segIndex + 1].first.toFloat()
+                    val endRank = waypoints[segIndex + 1].second.toFloat()
+
+                    val currentFile = startFile + (endFile - startFile) * segProgress
+                    val currentRank = startRank + (endRank - startRank) * segProgress
+
+                    val displayFilePos = if (flipped) 7f - currentFile else currentFile
+                    val displayRankPos = if (flipped) currentRank else 7f - currentRank
+
+                    val squareSizePx = with(androidx.compose.ui.platform.LocalDensity.current) { squareSize.toPx() }
+                    val labelWidthPx = with(androidx.compose.ui.platform.LocalDensity.current) { labelWidth.toPx() }
+
+                    val offsetX = labelWidthPx + displayFilePos * squareSizePx
+                    val offsetY = displayRankPos * squareSizePx
+
+                    val liftScale = when {
+                        progress.value < 0.15f -> 1f + 0.35f * (progress.value / 0.15f)
+                        progress.value > 0.85f -> 1f + 0.35f * ((1f - progress.value) / 0.15f)
+                        else -> 1.35f
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .offset { IntOffset(offsetX.toInt(), offsetY.toInt()) }
+                            .size(squareSize)
+                            .zIndex(10f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = PieceUnicode.get(movingPiece.type, movingPiece.color),
+                            fontSize = PIECE_FONT_SIZE.sp,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.scale(liftScale)
+                        )
+                    }
+                }
+
+                if (engineFadeOutActive && capturedPiece != null) {
+                    val toFile = engineAnimMove.to.file
+                    val toRank = engineAnimMove.to.rank
+                    val dispFile = if (flipped) 7 - toFile else toFile
+                    val dispRank = if (flipped) toRank else 7 - toRank
+
+                    val squareSizePx = with(androidx.compose.ui.platform.LocalDensity.current) { squareSize.toPx() }
+                    val labelWidthPx = with(androidx.compose.ui.platform.LocalDensity.current) { labelWidth.toPx() }
+
+                    val ox = labelWidthPx + dispFile.toFloat() * squareSizePx
+                    val oy = dispRank.toFloat() * squareSizePx
+
+                    Box(
+                        modifier = Modifier
+                            .offset { IntOffset(ox.toInt(), oy.toInt()) }
+                            .size(squareSize)
+                            .zIndex(5f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = PieceUnicode.get(capturedPiece.type, capturedPiece.color),
+                            fontSize = PIECE_FONT_SIZE.sp,
+                            textAlign = TextAlign.Center,
+                            color = Color.Unspecified.copy(alpha = captureAlpha.value),
                             modifier = Modifier.scale(1f)
                         )
                     }
