@@ -204,12 +204,12 @@ fun MenuScreen(onStartGame: (GameConfig) -> Unit, speechEngine: SpeechEngine = N
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Show game summary toggle
+        // Coach mode toggle
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.testTag("thinking-toggle-row")
         ) {
-            Text("Show game summary", color = ChessColors.OnSurface, fontSize = 14.sp)
+            Text("Enable coach", color = ChessColors.OnSurface, fontSize = 14.sp)
             Spacer(modifier = Modifier.width(8.dp))
             Switch(
                 checked = showThinking,
@@ -237,7 +237,7 @@ fun MenuScreen(onStartGame: (GameConfig) -> Unit, speechEngine: SpeechEngine = N
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.testTag("threats-toggle-row")
         ) {
-            Text("Show pieces under threat", color = ChessColors.OnSurface, fontSize = 14.sp)
+            Text("Highlight threats", color = ChessColors.OnSurface, fontSize = 14.sp)
             Spacer(modifier = Modifier.width(8.dp))
             Switch(
                 checked = showThreats,

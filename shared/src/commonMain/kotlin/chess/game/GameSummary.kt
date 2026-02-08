@@ -4,9 +4,9 @@ import chess.core.*
 import chess.engine.SimpleEngine
 
 data class GameSummary(
-    val whoIsWinning: String,
+    val lesson: String,
     val evalDescription: String,
-    val risks: List<String>,
+    val tips: List<String>,
     val suggestion: String,
     val phase: String,
     val moveNumber: Int
@@ -20,33 +20,32 @@ object GameSummaryGenerator {
         val moveNumber = board.fullMoveNumber
         val opponent = playerColor.opposite()
 
-        val whoIsWinning = when {
-            playerEval > 5.0 -> "You're dominating"
-            playerEval > 2.0 -> "You're winning"
-            playerEval > 0.5 -> "You have a slight edge"
-            playerEval > -0.5 -> "Position is roughly equal"
-            playerEval > -2.0 -> "Your opponent has a slight edge"
-            playerEval > -5.0 -> "Your opponent is winning"
-            else -> "Your opponent is dominating"
+        val lesson = when {
+            playerEval > 5.0 -> "Excellent! You have a commanding lead. Focus on trading pieces to simplify — when you're ahead in material, fewer pieces on the board makes it easier to convert your advantage."
+            playerEval > 2.0 -> "Well played! You're ahead. Look for safe exchanges — trading pieces of equal value keeps your advantage while reducing your opponent's counterplay."
+            playerEval > 0.5 -> "You have a small edge. Keep building your position — look for ways to improve your worst-placed piece, or create weaknesses in your opponent's camp."
+            playerEval > -0.5 -> "The position is balanced. This is where strategy matters most — try to control the center, develop your pieces to active squares, and keep your king safe."
+            playerEval > -2.0 -> "You're slightly behind. Stay alert for tactical opportunities — sometimes a well-timed combination can turn the tables. Avoid further trades when you're down material."
+            playerEval > -5.0 -> "You're at a disadvantage. Look for complications — your best chance is to create threats and put pressure on your opponent. Quiet play favours the side that's ahead."
+            else -> "Tough position. Don't give up — set traps, create threats, and make your opponent work for the win. Surprising moves can lead to blunders from the other side."
         }
 
         val evalDescription = when {
-            playerEval > 8.0 -> "Overwhelming advantage"
-            playerEval > 3.0 -> "Major piece advantage"
-            playerEval > 1.5 -> "About a minor piece ahead"
-            playerEval > 0.5 -> "Slightly better position"
-            playerEval > -0.5 -> "Balanced game"
-            playerEval > -1.5 -> "Slightly worse position"
-            playerEval > -3.0 -> "About a minor piece behind"
-            playerEval > -8.0 -> "Major piece deficit"
-            else -> "Overwhelming disadvantage"
+            playerEval > 8.0 -> "Winning position"
+            playerEval > 3.0 -> "Major advantage"
+            playerEval > 1.5 -> "Clear advantage"
+            playerEval > 0.5 -> "Slight advantage"
+            playerEval > -0.5 -> "Equal position"
+            playerEval > -1.5 -> "Slight disadvantage"
+            playerEval > -3.0 -> "Clear disadvantage"
+            playerEval > -8.0 -> "Major disadvantage"
+            else -> "Losing position"
         }
 
-        // Risks: pieces under attack, undefended pieces, king exposure
-        val risks = mutableListOf<String>()
+        val tips = mutableListOf<String>()
 
         if (MoveGenerator.isInCheck(board, playerColor)) {
-            risks.add("Your king is in check!")
+            tips.add("Your king is in check — you must block, capture, or move your king. Always look for a response that also improves your position.")
         }
 
         val hangingPieces = mutableListOf<String>()
@@ -59,10 +58,10 @@ object GameSummaryGenerator {
             }
         }
         if (hangingPieces.isNotEmpty()) {
-            risks.add("Undefended: ${hangingPieces.joinToString(", ")}")
+            tips.add("Hanging pieces: ${hangingPieces.joinToString(", ")}. A piece is \"hanging\" when it's attacked but not defended — either move it, defend it, or make sure you have a stronger threat elsewhere.")
         }
 
-        // Check for opponent threats (pieces attacking toward king area)
+        // Castling advice
         val playerKingSq = board.allPieces(playerColor)
             .firstOrNull { it.second.type == PieceType.KING }?.first
         if (playerKingSq != null) {
@@ -73,8 +72,31 @@ object GameSummaryGenerator {
             }
             val hasCastled = !canCastle && moveNumber > 1
             if (!hasCastled && moveNumber in 4..15 && canCastle) {
-                risks.add("King hasn't castled yet")
+                tips.add("Consider castling soon. Castling tucks your king behind pawns for safety and connects your rooks — it's usually best to castle before move 10.")
             }
+        }
+
+        // Development advice
+        val pieces = board.allPieces(playerColor)
+        val homeRank = if (playerColor == PieceColor.WHITE) 0 else 7
+        val undeveloped = pieces.filter {
+            it.second.type in listOf(PieceType.KNIGHT, PieceType.BISHOP) &&
+                it.first.rank == homeRank
+        }
+        if (undeveloped.size >= 2 && moveNumber < 12) {
+            tips.add("You still have ${undeveloped.size} minor pieces on the back rank. In the opening, aim to develop knights and bishops to active squares before launching attacks.")
+        }
+
+        // Center control
+        val centerSquares = listOf(Square(3,3), Square(3,4), Square(4,3), Square(4,4))
+        val centerPawns = centerSquares.count { sq ->
+            val p = board[sq]; p != null && p.type == PieceType.PAWN && p.color == playerColor
+        }
+        val opponentCenterPawns = centerSquares.count { sq ->
+            val p = board[sq]; p != null && p.type == PieceType.PAWN && p.color == opponent
+        }
+        if (centerPawns == 0 && opponentCenterPawns >= 1 && moveNumber in 3..15) {
+            tips.add("Your opponent controls the center with pawns. Central control gives pieces more scope — try to challenge with pawn breaks or place pieces that contest those squares.")
         }
 
         // Suggestion: best move in human-readable form
@@ -87,9 +109,9 @@ object GameSummaryGenerator {
         }
 
         return GameSummary(
-            whoIsWinning = whoIsWinning,
+            lesson = lesson,
             evalDescription = evalDescription,
-            risks = risks.take(3),
+            tips = tips.take(3),
             suggestion = suggestion,
             phase = phase,
             moveNumber = moveNumber
@@ -97,20 +119,17 @@ object GameSummaryGenerator {
     }
 
     private fun generateSuggestion(board: Board, playerColor: PieceColor, engine: SimpleEngine): String {
-        // Only suggest if it's the player's turn
-        if (board.activeColor != playerColor) return "Waiting for opponent's move…"
+        if (board.activeColor != playerColor) return "Watch how your opponent responds — try to predict their move and think about why they chose it."
 
         val moves = MoveGenerator.generateLegalMoves(board)
-        if (moves.isEmpty()) return "No legal moves"
+        if (moves.isEmpty()) return ""
 
-        // Find the best move using engine at shallow depth
         var bestMove: Move? = null
         var bestEval = Double.NEGATIVE_INFINITY
 
         for (move in moves) {
             val newBoard = board.makeMove(move)
             val eval = engine.evaluate(newBoard)
-            // Flip sign: engine.evaluate returns positive = white advantage
             val playerEval = if (playerColor == PieceColor.WHITE) eval else -eval
             if (playerEval > bestEval) {
                 bestEval = playerEval
@@ -118,24 +137,25 @@ object GameSummaryGenerator {
             }
         }
 
-        if (bestMove == null) return "No clear suggestion"
+        if (bestMove == null) return ""
 
-        val piece = board[bestMove.from] ?: return "No clear suggestion"
+        val piece = board[bestMove.from] ?: return ""
         val captured = board[bestMove.to]
 
         return buildString {
+            append("Try: ")
             if (captured != null) {
-                append("Capture ${pieceName(captured.type)} with ${pieceName(piece.type)}")
+                append("capture the ${pieceName(captured.type)} with your ${pieceName(piece.type)}")
                 append(" (${bestMove.from.toAlgebraic()}→${bestMove.to.toAlgebraic()})")
             } else if (piece.type == PieceType.KING &&
                 kotlin.math.abs(bestMove.to.file - bestMove.from.file) == 2
             ) {
-                append(if (bestMove.to.file > bestMove.from.file) "Castle kingside" else "Castle queenside")
+                append(if (bestMove.to.file > bestMove.from.file) "castle kingside" else "castle queenside")
             } else {
-                append("Move ${pieceName(piece.type)} to ${bestMove.to.toAlgebraic()}")
-                val reason = moveReason(board, bestMove, piece, playerColor)
-                if (reason.isNotEmpty()) append(" — $reason")
+                append("move your ${pieceName(piece.type)} to ${bestMove.to.toAlgebraic()}")
             }
+            val reason = moveReason(board, bestMove, piece, playerColor)
+            if (reason.isNotEmpty()) append(" — this $reason")
         }
     }
 

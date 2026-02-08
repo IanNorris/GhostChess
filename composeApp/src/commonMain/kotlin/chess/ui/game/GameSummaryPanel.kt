@@ -26,12 +26,12 @@ fun GameSummaryPanel(
             .padding(12.dp)
             .testTag("game-summary-panel")
     ) {
-        // Who is winning + phase
+        // Header
         Text(
-            text = "${phaseEmoji(summary.phase)} ${summary.whoIsWinning}",
+            text = "🎓 Coach",
             color = ChessColors.Accent,
             fontSize = 14.sp,
-            modifier = Modifier.testTag("summary-status")
+            modifier = Modifier.testTag("summary-header")
         )
 
         Spacer(modifier = Modifier.height(2.dp))
@@ -43,21 +43,31 @@ fun GameSummaryPanel(
             modifier = Modifier.testTag("summary-details")
         )
 
-        // Risks
-        if (summary.risks.isNotEmpty()) {
+        // Lesson
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = summary.lesson,
+            color = ChessColors.OnSurface,
+            fontSize = 12.sp,
+            modifier = Modifier.testTag("summary-lesson")
+        )
+
+        // Tips
+        if (summary.tips.isNotEmpty()) {
             Spacer(modifier = Modifier.height(6.dp))
-            for (risk in summary.risks) {
+            for (tip in summary.tips) {
                 Text(
-                    text = "⚠️ $risk",
+                    text = "📌 $tip",
                     color = ChessColors.Error,
-                    fontSize = 12.sp
+                    fontSize = 11.sp
                 )
+                Spacer(modifier = Modifier.height(2.dp))
             }
         }
 
-        // Best move suggestion
+        // Suggestion
         if (summary.suggestion.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = "💡 ${summary.suggestion}",
                 color = ChessColors.OnSurface,

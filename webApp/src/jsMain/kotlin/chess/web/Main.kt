@@ -885,17 +885,28 @@ fun renderGameSummary() {
         panel.className = "active"
         panel.style.display = "block"
 
-        val phaseEmoji = when (summary.phase) {
-            "Opening" -> "📖"
-            "Endgame" -> "🏁"
-            else -> "⚔️"
-        }
         document.getElementById("summary-status")!!.textContent =
-            "$phaseEmoji ${summary.whoIsWinning}"
+            "🎓 Coach"
         document.getElementById("summary-details")!!.textContent =
             "${summary.evalDescription} · ${summary.phase} · Move ${summary.moveNumber}"
-        document.getElementById("summary-risks")!!.textContent =
-            if (summary.risks.isNotEmpty()) summary.risks.joinToString("\n") { "⚠️ $it" } else ""
+
+        val risksEl = document.getElementById("summary-risks")!!
+        risksEl.innerHTML = ""
+        // Lesson first
+        val lessonEl = document.createElement("div") as HTMLElement
+        lessonEl.textContent = summary.lesson
+        lessonEl.style.color = "#E0E0E0"
+        lessonEl.style.marginBottom = "4px"
+        risksEl.appendChild(lessonEl)
+        // Tips
+        for (tip in summary.tips) {
+            val tipEl = document.createElement("div") as HTMLElement
+            tipEl.textContent = "📌 $tip"
+            tipEl.style.fontSize = "11px"
+            tipEl.style.marginBottom = "2px"
+            risksEl.appendChild(tipEl)
+        }
+
         document.getElementById("summary-suggestion")!!.textContent =
             if (summary.suggestion.isNotEmpty()) "💡 ${summary.suggestion}" else ""
     } else {
