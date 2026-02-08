@@ -9,6 +9,7 @@ import chess.game.GameSession
 import chess.ghost.GhostPreviewMode
 import chess.ghost.GhostPreviewState
 import chess.ghost.GhostPreviewStatus
+import chess.speech.CapturedPiecesTracker
 import chess.speech.GameCommentator
 import chess.speech.SpeechEngine
 import kotlinx.browser.document
@@ -39,12 +40,21 @@ var flipped = false
 var autoPlayJob: Job? = null
 var pendingPromotionMove: ((PieceType) -> Move)? = null
 
+val capturedTracker = CapturedPiecesTracker()
+var lastBanterText: String? = null
+
+// Animation state
+var animatingMove: Move? = null
+var animatingPiece: Piece? = null
+var capturedPiece: Piece? = null
+var animationTimeoutId: Int? = null
+
 // Config state
 var gameMode = GameMode.HUMAN_VS_ENGINE
 var playerColor = PieceColor.WHITE
 var ghostDepth = 5
 var showThinking = false
-var difficulty = Difficulty.MEDIUM
+var difficulty = Difficulty.LEVEL_6
 
 // Move timer
 var moveStartTime = 0.0
@@ -61,6 +71,8 @@ class BrowserSpeechEngine : SpeechEngine {
     override fun speak(text: String) {
         if (!enabled) return
         stop()
+        lastBanterText = text
+        updateBanterDisplay()
         val utterance = js("new SpeechSynthesisUtterance(text)")
         utterance.rate = 1.0
         utterance.pitch = 1.0
@@ -69,6 +81,17 @@ class BrowserSpeechEngine : SpeechEngine {
 
     override fun stop() {
         js("window.speechSynthesis.cancel()")
+    }
+}
+
+fun updateBanterDisplay() {
+    val el = document.getElementById("banter-text") ?: return
+    el.textContent = lastBanterText ?: ""
+    if (lastBanterText != null) {
+        (el as HTMLElement).style.opacity = "1"
+        window.setTimeout({
+            (el as HTMLElement).style.opacity = "0"
+        }, 4000)
     }
 }
 
@@ -102,7 +125,7 @@ fun loadSettings() {
         showThinking = it == "true"
     }
     window.localStorage.getItem("ghostchess_difficulty")?.let {
-        difficulty = try { Difficulty.valueOf(it) } catch (_: Exception) { Difficulty.MEDIUM }
+        difficulty = Difficulty.fromName(it)
     }
     window.localStorage.getItem("ghostchess_speech")?.let {
         speechEngine.enabled = it == "true"
@@ -142,21 +165,23 @@ fun setupMenu() {
     colorWhite.onclick = { playerColor = PieceColor.WHITE; updateColorChips(); saveSettings(); null }
     colorBlack.onclick = { playerColor = PieceColor.BLACK; updateColorChips(); saveSettings(); null }
 
-    // Difficulty chips
-    val diffEasy = document.getElementById("difficulty-easy") as HTMLElement
-    val diffMedium = document.getElementById("difficulty-medium") as HTMLElement
-    val diffHard = document.getElementById("difficulty-hard") as HTMLElement
+    // Difficulty slider
+    val diffSlider = document.getElementById("difficulty-slider") as HTMLInputElement
+    val diffLabel = document.getElementById("difficulty-label")!!
 
-    fun updateDifficultyChips() {
-        diffEasy.className = if (difficulty == Difficulty.EASY) "chip selected" else "chip"
-        diffMedium.className = if (difficulty == Difficulty.MEDIUM) "chip selected" else "chip"
-        diffHard.className = if (difficulty == Difficulty.HARD) "chip selected" else "chip"
+    fun updateDifficultySlider() {
+        diffSlider.value = difficulty.level.toString()
+        diffLabel.textContent = "Difficulty: ${difficulty.label()}"
         updateWinLossDisplay()
     }
 
-    diffEasy.onclick = { difficulty = Difficulty.EASY; updateDifficultyChips(); saveSettings(); null }
-    diffMedium.onclick = { difficulty = Difficulty.MEDIUM; updateDifficultyChips(); saveSettings(); null }
-    diffHard.onclick = { difficulty = Difficulty.HARD; updateDifficultyChips(); saveSettings(); null }
+    diffSlider.oninput = {
+        difficulty = Difficulty.fromLevel(diffSlider.value.toInt())
+        diffLabel.textContent = "Difficulty: ${difficulty.label()}"
+        updateWinLossDisplay()
+        saveSettings()
+        null
+    }
 
     // Depth slider
     val depthSlider = document.getElementById("depth-slider") as HTMLInputElement
@@ -179,7 +204,7 @@ fun setupMenu() {
     // Restore UI from loaded settings
     updateModeChips()
     updateColorChips()
-    updateDifficultyChips()
+    updateDifficultySlider()
     depthSlider.value = ghostDepth.toString()
     depthLabel.textContent = "Preview depth: $ghostDepth moves"
     thinkingToggle.checked = showThinking
@@ -195,6 +220,8 @@ fun setupMenu() {
         val engine = SimpleEngine()
         session = GameSession(engine, config)
         commentator = GameCommentator(speechEngine, playerColor = playerColor)
+        capturedTracker.reset()
+        lastBanterText = null
 
         menuScreen.asDynamic().style.display = "none"
         gameScreen.asDynamic().style.display = "block"
@@ -212,11 +239,16 @@ fun setupMenu() {
                 session!!.makeEngineMove()
                 val boardAfter = session!!.getGameState().board
                 val engineMove = session!!.getGameState().moveHistory.last()
+                // Capture engine move animation
+                animatingPiece = boardBefore[engineMove.from]
+                capturedPiece = boardBefore[engineMove.to]
+                animatingMove = engineMove
                 commentator?.onComputerMove(engineMove, boardBefore, boardAfter)
                 resetMoveTimer()
             }
 
             renderBoard()
+            renderCapturedPieces()
             renderGhostControls()
         }
     })
@@ -261,20 +293,41 @@ fun setupMenu() {
         val s = session ?: return@addEventListener
         try {
             autoPlayJob?.cancel()
-            s.undoMove()
+
+            // Track captures being undone
+            fun undoOneMove() {
+                val gs = s.getGameState()
+                if (gs.moveHistory.isEmpty()) return
+                val lastMove = gs.moveHistory.last()
+                val boardBefore = gs.board
+                // The color that made the move is the opposite of current active color
+                val moverColor = boardBefore.activeColor.opposite()
+                if (lastMove.isEnPassant) {
+                    capturedTracker.undoCapture(PieceType.PAWN, moverColor)
+                }
+                s.undoMove()
+                val boardAfterUndo = s.getGameState().board
+                // If a piece reappeared at the destination, it was captured
+                val restoredPiece = boardAfterUndo[lastMove.to]
+                if (restoredPiece != null && restoredPiece.color != moverColor) {
+                    capturedTracker.undoCapture(restoredPiece.type, moverColor)
+                }
+            }
+
+            undoOneMove()
             // In vs-computer mode, also undo the computer's move
-            // so the player returns to their last decision point
             if (s.config.mode == GameMode.HUMAN_VS_ENGINE &&
                 s.getGameState().moveHistory.isNotEmpty() &&
                 !s.isPlayerTurn()
             ) {
-                s.undoMove()
+                undoOneMove()
             }
             commentator?.onMoveUndone()
             selectedSquare = null
             legalMovesForSelected = emptyList()
             resetMoveTimer()
             renderBoard()
+            renderCapturedPieces()
             renderGhostControls()
         } catch (_: Exception) {}
     })
@@ -363,8 +416,10 @@ fun renderBoard() {
             if (displayPiece != null) {
                 val pieceSpan = document.createElement("span") as HTMLElement
                 pieceSpan.textContent = pieceChar(displayPiece.type, displayPiece.color)
+                if (displayPiece.color == PieceColor.WHITE) pieceSpan.classList.add("piece-white")
+                else pieceSpan.classList.add("piece-black")
                 if (ghostActive && isGhostDiff) {
-                    pieceSpan.className = "ghost-piece"
+                    pieceSpan.classList.add("ghost-piece")
                     pieceSpan.setAttribute("data-testid", "ghost-piece-${square.toAlgebraic()}")
                 } else {
                     pieceSpan.setAttribute("data-testid", "piece-${square.toAlgebraic()}")
@@ -375,6 +430,119 @@ fun renderBoard() {
             squareEl.addEventListener("click", { onSquareClick(square) })
             boardEl.appendChild(squareEl)
         }
+    }
+
+    // Animation overlay
+    val currentAnim = animatingMove
+    val movingPiece = animatingPiece
+    if (currentAnim != null && movingPiece != null) {
+        val boardRect = boardEl.getBoundingClientRect()
+        val squareWidth = boardRect.width / 8.0
+        val squareHeight = boardRect.height / 8.0
+
+        // Hide the piece at destination
+        val toAlg = currentAnim.to.toAlgebraic()
+        val destSquare = boardEl.querySelector("[data-testid='square-$toAlg'] span:not(.legal-dot)") as? HTMLElement
+        destSquare?.style?.visibility = "hidden"
+
+        fun displayPos(sq: Square): Pair<Double, Double> {
+            val df = if (flipped) 7 - sq.file else sq.file
+            val dr = if (flipped) sq.rank else 7 - sq.rank
+            return Pair(df * squareWidth, dr * squareHeight)
+        }
+
+        // Build waypoints (L-shape for knights)
+        val waypoints = if (movingPiece.type == PieceType.KNIGHT) {
+            val df = currentAnim.to.file - currentAnim.from.file
+            val dr = currentAnim.to.rank - currentAnim.from.rank
+            val mid = if (kotlin.math.abs(df) > kotlin.math.abs(dr)) {
+                Square(currentAnim.to.file, currentAnim.from.rank)
+            } else {
+                Square(currentAnim.from.file, currentAnim.to.rank)
+            }
+            listOf(currentAnim.from, mid, currentAnim.to)
+        } else {
+            listOf(currentAnim.from, currentAnim.to)
+        }
+
+        val overlay = document.createElement("div") as HTMLElement
+        overlay.id = "move-overlay"
+        boardEl.appendChild(overlay)
+
+        val pieceEl = document.createElement("span") as HTMLElement
+        pieceEl.className = "animating-piece"
+        pieceEl.textContent = pieceChar(movingPiece.type, movingPiece.color)
+        if (movingPiece.color == PieceColor.WHITE) pieceEl.classList.add("piece-white")
+        else pieceEl.classList.add("piece-black")
+
+        val startPos = displayPos(waypoints[0])
+        pieceEl.style.left = "${startPos.first + squareWidth / 2}px"
+        pieceEl.style.top = "${startPos.second + squareHeight / 2}px"
+        pieceEl.style.transform = "translate(-50%, -50%) scale(1.0)"
+        overlay.appendChild(pieceEl)
+
+        val animDuration = 600
+        val totalSegments = waypoints.size - 1
+
+        animationTimeoutId?.let { window.clearTimeout(it) }
+
+        var segmentIndex = 0
+        fun animateNextSegment() {
+            if (segmentIndex >= totalSegments) {
+                pieceEl.style.transform = "translate(-50%, -50%) scale(1.0)"
+
+                val cap = capturedPiece
+                if (cap != null) {
+                    val capEl = document.createElement("span") as HTMLElement
+                    capEl.className = "captured-fade"
+                    capEl.textContent = pieceChar(cap.type, cap.color)
+                    if (cap.color == PieceColor.WHITE) capEl.classList.add("piece-white")
+                    else capEl.classList.add("piece-black")
+                    val endPos = displayPos(currentAnim.to)
+                    capEl.style.left = "${endPos.first + squareWidth / 2}px"
+                    capEl.style.top = "${endPos.second + squareHeight / 2}px"
+                    capEl.style.opacity = "1"
+                    overlay.appendChild(capEl)
+
+                    window.setTimeout({
+                        capEl.style.opacity = "0"
+                        window.setTimeout({
+                            animatingMove = null
+                            animatingPiece = null
+                            capturedPiece = null
+                            renderBoard()
+                        }, 300)
+                    }, 16)
+                } else {
+                    window.setTimeout({
+                        animatingMove = null
+                        animatingPiece = null
+                        capturedPiece = null
+                        renderBoard()
+                    }, 50)
+                }
+                return
+            }
+
+            val target = waypoints[segmentIndex + 1]
+            val pos = displayPos(target)
+
+            pieceEl.style.transitionDuration = "${animDuration}ms"
+            pieceEl.style.left = "${pos.first + squareWidth / 2}px"
+            pieceEl.style.top = "${pos.second + squareHeight / 2}px"
+            pieceEl.style.transform = "translate(-50%, -50%) scale(1.35)"
+
+            if (segmentIndex == totalSegments - 1) {
+                window.setTimeout({
+                    pieceEl.style.transform = "translate(-50%, -50%) scale(1.0)"
+                }, (animDuration * 0.85).toInt())
+            }
+
+            segmentIndex++
+            animationTimeoutId = window.setTimeout({ animateNextSegment() }, animDuration)
+        }
+
+        window.setTimeout({ animateNextSegment() }, 16)
     }
 
     // Status
@@ -392,6 +560,41 @@ fun renderBoard() {
 
     // Move history
     renderMoveHistory()
+}
+
+fun renderCapturedPieces() {
+    val state = capturedTracker.getState()
+
+    val whiteCapturesEl = document.getElementById("white-captures") ?: return
+    whiteCapturesEl.innerHTML = ""
+    for (piece in state.whiteCaptured) {
+        val span = document.createElement("span") as HTMLElement
+        span.textContent = CapturedPiecesTracker.pieceUnicode(piece, PieceColor.BLACK)
+        span.className = "captured-piece piece-black"
+        whiteCapturesEl.appendChild(span)
+    }
+
+    val blackCapturesEl = document.getElementById("black-captures") ?: return
+    blackCapturesEl.innerHTML = ""
+    for (piece in state.blackCaptured) {
+        val span = document.createElement("span") as HTMLElement
+        span.textContent = CapturedPiecesTracker.pieceUnicode(piece, PieceColor.WHITE)
+        span.className = "captured-piece piece-white"
+        blackCapturesEl.appendChild(span)
+    }
+
+    val balanceEl = document.getElementById("material-balance") ?: return
+    val adv = state.advantage
+    balanceEl.textContent = when {
+        adv > 0 -> "⚖️ +$adv"
+        adv < 0 -> "⚖️ $adv"
+        else -> "⚖️ ="
+    }
+    (balanceEl as HTMLElement).style.color = when {
+        adv > 0 -> "#6BAF6B"
+        adv < 0 -> "#EF5350"
+        else -> "#aaa"
+    }
 }
 
 fun renderMoveHistory() {
@@ -449,6 +652,11 @@ fun onSquareClick(square: Square) {
         selectedSquare = square
         legalMovesForSelected = s.legalMoves().filter { it.from == square }
     } else {
+        if (selectedSquare != null && piece?.color != board.activeColor) {
+            // Player tried an illegal move with a piece selected
+            val inCheck = MoveGenerator.isInCheck(board, board.activeColor)
+            commentator?.onIllegalMoveAttempt(inCheck)
+        }
         selectedSquare = null
         legalMovesForSelected = emptyList()
     }
@@ -459,8 +667,23 @@ fun executeMove(s: GameSession, move: Move) {
     scope.launch {
         autoPlayJob?.cancel()
         val boardBeforePlayer = s.getGameState().board
+
+        // Capture animation info before making the move
+        animatingPiece = boardBeforePlayer[move.from]
+        capturedPiece = boardBeforePlayer[move.to]
+        animatingMove = move
+
         s.makePlayerMove(move)
         val boardAfterPlayer = s.getGameState().board
+
+        // Track player capture
+        val playerCapturedPiece = boardBeforePlayer[move.to]
+        if (playerCapturedPiece != null) {
+            capturedTracker.onCapture(playerCapturedPiece.type, boardBeforePlayer.activeColor)
+        } else if (move.to == boardBeforePlayer.enPassantTarget && boardBeforePlayer[move.from]?.type == PieceType.PAWN) {
+            capturedTracker.onCapture(PieceType.PAWN, boardBeforePlayer.activeColor)
+        }
+
         commentator?.onPlayerMove(move, boardBeforePlayer, boardAfterPlayer)
         selectedSquare = null
         legalMovesForSelected = emptyList()
@@ -472,11 +695,25 @@ fun executeMove(s: GameSession, move: Move) {
             !s.isPlayerTurn()
         ) {
             renderBoard()
-            delay(300)
+            renderCapturedPieces()
+            // Wait for player move animation to complete
+            val playerAnimWait = if (animatingMove != null) 700L else 0L
+            delay(300 + playerAnimWait)
             val boardBeforeEngine = s.getGameState().board
             s.makeEngineMove()
             val boardAfterEngine = s.getGameState().board
             val engineMove = s.getGameState().moveHistory.last()
+            // Track engine capture
+            val engineCapturedPiece = boardBeforeEngine[engineMove.to]
+            if (engineCapturedPiece != null) {
+                capturedTracker.onCapture(engineCapturedPiece.type, boardBeforeEngine.activeColor)
+            } else if (engineMove.to == boardBeforeEngine.enPassantTarget && boardBeforeEngine[engineMove.from]?.type == PieceType.PAWN) {
+                capturedTracker.onCapture(PieceType.PAWN, boardBeforeEngine.activeColor)
+            }
+            // Capture engine move animation
+            animatingPiece = boardBeforeEngine[engineMove.from]
+            capturedPiece = boardBeforeEngine[engineMove.to]
+            animatingMove = engineMove
             commentator?.onComputerMove(engineMove, boardBeforeEngine, boardAfterEngine)
             resetMoveTimer()
         }
@@ -489,6 +726,7 @@ fun executeMove(s: GameSession, move: Move) {
             commentator?.onGhostPreviewStart()
         }
         renderBoard()
+        renderCapturedPieces()
         renderGhostControls()
         renderThinkingPanel()
     }
@@ -813,4 +1051,6 @@ fun checkAndRecordGameEnd() {
     if (status != GameStatus.DRAW) {
         recordResult(s.config.difficulty, playerWon)
     }
+    val playerWonOrNull: Boolean? = if (status == GameStatus.DRAW) null else playerWon
+    commentator?.onGameEnd(playerWonOrNull, s.getGameState().moveHistory.size)
 }

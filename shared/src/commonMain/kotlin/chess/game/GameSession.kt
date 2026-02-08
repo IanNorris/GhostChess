@@ -6,15 +6,51 @@ import chess.ghost.GhostPreviewManager
 import chess.ghost.GhostPreviewState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlin.random.Random
 
 enum class GameMode {
     HUMAN_VS_ENGINE,
     HUMAN_VS_HUMAN
 }
 
-enum class Difficulty {
-    EASY, MEDIUM, HARD;
-    fun label(): String = name.lowercase().replaceFirstChar { it.uppercase() }
+enum class Difficulty(val level: Int) {
+    LEVEL_1(1), LEVEL_2(2), LEVEL_3(3), LEVEL_4(4),
+    LEVEL_5(5), LEVEL_6(6), LEVEL_7(7), LEVEL_8(8),
+    LEVEL_9(9), LEVEL_10(10), LEVEL_11(11), LEVEL_12(12);
+
+    fun label(): String = "Level $level"
+
+    val searchDepth: Int get() = when (level) {
+        in 1..2 -> 1
+        in 3..4 -> 2
+        in 5..6 -> 3
+        in 7..8 -> 4
+        in 9..10 -> 5
+        else -> 6
+    }
+
+    /** Chance (0.0–1.0) of picking a random legal move instead of the best one */
+    val randomMoveProbability: Double get() = when (level) {
+        1 -> 0.5
+        2 -> 0.35
+        3 -> 0.25
+        4 -> 0.15
+        5 -> 0.10
+        6 -> 0.05
+        else -> 0.0
+    }
+
+    companion object {
+        fun fromLevel(n: Int): Difficulty = entries.first { it.level == n.coerceIn(1, 12) }
+
+        /** Migrate old EASY/MEDIUM/HARD names from saved settings */
+        fun fromName(name: String): Difficulty = when (name) {
+            "EASY" -> LEVEL_3
+            "MEDIUM" -> LEVEL_6
+            "HARD" -> LEVEL_9
+            else -> try { valueOf(name) } catch (_: Exception) { LEVEL_6 }
+        }
+    }
 }
 
 data class GameConfig(
@@ -22,7 +58,7 @@ data class GameConfig(
     val playerColor: PieceColor = PieceColor.WHITE,
     val ghostDepth: Int = 5,
     val showEngineThinking: Boolean = false,
-    val difficulty: Difficulty = Difficulty.MEDIUM
+    val difficulty: Difficulty = Difficulty.LEVEL_6
 )
 
 class GameSession(
@@ -57,11 +93,18 @@ class GameSession(
         require(config.mode == GameMode.HUMAN_VS_ENGINE) { "Engine moves only in vs engine mode" }
         require(!isPlayerTurn()) { "It's the player's turn" }
 
-        val searchDepth = when (config.difficulty) {
-            Difficulty.EASY -> 1
-            Difficulty.MEDIUM -> 1
-            Difficulty.HARD -> 2
+        val searchDepth = config.difficulty.searchDepth
+        val randomChance = config.difficulty.randomMoveProbability
+
+        // At lower difficulties, occasionally make a random legal move
+        if (randomChance > 0.0 && Random.nextDouble() < randomChance) {
+            val legalMoves = MoveGenerator.generateLegalMoves(gameState.board)
+            if (legalMoves.isNotEmpty()) {
+                gameState = gameState.makeMove(legalMoves.random())
+                return gameState
+            }
         }
+
         val analysis = withContext(Dispatchers.Default) {
             engine.getBestLine(gameState.toFen(), searchDepth)
         }

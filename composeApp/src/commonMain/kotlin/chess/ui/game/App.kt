@@ -21,6 +21,7 @@ import chess.game.GameMode
 import chess.game.GameSession
 import chess.ghost.GhostPreviewMode
 import chess.ghost.GhostPreviewState
+import chess.speech.CapturedPiecesTracker
 import chess.speech.GameCommentator
 import chess.speech.NoOpSpeechEngine
 import chess.speech.SpeechEngine
@@ -94,8 +95,8 @@ fun MenuScreen(onStartGame: (GameConfig) -> Unit, speechEngine: SpeechEngine = N
     var difficulty by remember {
         mutableStateOf(
             settingsStore.getString("difficulty")?.let {
-                try { Difficulty.valueOf(it) } catch (_: Exception) { Difficulty.MEDIUM }
-            } ?: Difficulty.MEDIUM
+                Difficulty.fromName(it)
+            } ?: Difficulty.LEVEL_6
         )
     }
     var speechEnabled by remember { mutableStateOf(settingsStore.getString("speech") == "true") }
@@ -166,18 +167,17 @@ fun MenuScreen(onStartGame: (GameConfig) -> Unit, speechEngine: SpeechEngine = N
             Spacer(modifier = Modifier.height(16.dp))
 
             // Difficulty
-            Text("Difficulty", color = ChessColors.OnSurface, fontSize = 16.sp)
+            Text("Difficulty: ${difficulty.label()}", color = ChessColors.OnSurface, fontSize = 16.sp)
             Spacer(modifier = Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Difficulty.entries.forEach { diff ->
-                    FilterChip(
-                        selected = difficulty == diff,
-                        onClick = { difficulty = diff; saveSettings() },
-                        label = { Text(diff.label()) },
-                        modifier = Modifier.testTag("difficulty-${diff.name.lowercase()}")
-                    )
-                }
-            }
+            Slider(
+                value = difficulty.level.toFloat(),
+                onValueChange = { difficulty = Difficulty.fromLevel(it.toInt()); saveSettings() },
+                valueRange = 1f..12f,
+                steps = 10,
+                modifier = Modifier
+                    .width(250.dp)
+                    .testTag("difficulty-slider")
+            )
             Spacer(modifier = Modifier.height(16.dp))
         }
 
@@ -252,6 +252,7 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
     val engine = remember { SimpleEngine() }
     val session = remember { GameSession(engine, config) }
     val commentator = remember { GameCommentator(speechEngine, playerColor = config.playerColor) }
+    val capturedTracker = remember { CapturedPiecesTracker() }
 
     var gameState by remember { mutableStateOf(session.getGameState()) }
     var ghostState by remember { mutableStateOf(session.getGhostState()) }
@@ -261,6 +262,7 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
     var gamePaused by remember { mutableStateOf(false) }
     var whiteElapsedSecs by remember { mutableIntStateOf(0) }
     var blackElapsedSecs by remember { mutableIntStateOf(0) }
+    var capturedState by remember { mutableStateOf(capturedTracker.getState()) }
 
     // Move timer — only counts during current player's turn (human only)
     LaunchedEffect(gamePaused, gameState.status, gameState.board.activeColor) {
@@ -295,6 +297,15 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
             gameState = session.getGameState()
             ghostState = session.getGhostState()
             val engineMove = gameState.moveHistory.last()
+            // Track engine capture
+            val engineCapturedPiece = boardBefore[engineMove.to]
+            if (engineCapturedPiece != null) {
+                capturedTracker.onCapture(engineCapturedPiece.type, boardBefore.activeColor)
+                capturedState = capturedTracker.getState()
+            } else if (engineMove.to == boardBefore.enPassantTarget && boardBefore[engineMove.from]?.type == PieceType.PAWN) {
+                capturedTracker.onCapture(PieceType.PAWN, boardBefore.activeColor)
+                capturedState = capturedTracker.getState()
+            }
             commentator.onComputerMove(engineMove, boardBefore, gameState.board)
         }
     }
@@ -324,6 +335,16 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
                 scope.launch {
                     val boardBeforePlayer = session.getGameState().board
                     gameState = session.makePlayerMove(move)
+
+                    // Track player capture
+                    val playerCapturedPiece = boardBeforePlayer[move.to]
+                    if (playerCapturedPiece != null) {
+                        capturedTracker.onCapture(playerCapturedPiece.type, boardBeforePlayer.activeColor)
+                    } else if (move.to == boardBeforePlayer.enPassantTarget && boardBeforePlayer[move.from]?.type == PieceType.PAWN) {
+                        capturedTracker.onCapture(PieceType.PAWN, boardBeforePlayer.activeColor)
+                    }
+                    capturedState = capturedTracker.getState()
+
                     commentator.onPlayerMove(move, boardBeforePlayer, gameState.board)
                     selectedSquare = null
                     legalMovesForSelected = emptyList()
@@ -337,7 +358,28 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
                         session.makeEngineMove()
                         gameState = session.getGameState()
                         val engineMove = gameState.moveHistory.last()
+                        // Track engine capture
+                        val engineCapturedPiece = boardBeforeEngine[engineMove.to]
+                        if (engineCapturedPiece != null) {
+                            capturedTracker.onCapture(engineCapturedPiece.type, boardBeforeEngine.activeColor)
+                        } else if (engineMove.to == boardBeforeEngine.enPassantTarget && boardBeforeEngine[engineMove.from]?.type == PieceType.PAWN) {
+                            capturedTracker.onCapture(PieceType.PAWN, boardBeforeEngine.activeColor)
+                        }
+                        capturedState = capturedTracker.getState()
                         commentator.onComputerMove(engineMove, boardBeforeEngine, gameState.board)
+                    }
+
+                    // Check for game end
+                    val status = gameState.status
+                    if (status != GameStatus.IN_PROGRESS) {
+                        val playerWon = when {
+                            status == GameStatus.DRAW -> null
+                            status == GameStatus.WHITE_WINS && config.playerColor == PieceColor.WHITE -> true
+                            status == GameStatus.BLACK_WINS && config.playerColor == PieceColor.BLACK -> true
+                            status == GameStatus.WHITE_WINS || status == GameStatus.BLACK_WINS -> false
+                            else -> null
+                        }
+                        commentator.onGameEnd(playerWon, gameState.moveHistory.size)
                     }
 
                     session.requestGhostPreview()
@@ -352,6 +394,10 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
             selectedSquare = square
             legalMovesForSelected = session.legalMoves().filter { it.from == square }
         } else {
+            if (selectedSquare != null && piece?.color != gameState.board.activeColor) {
+                val inCheck = MoveGenerator.isInCheck(gameState.board, gameState.board.activeColor)
+                commentator.onIllegalMoveAttempt(inCheck)
+            }
             selectedSquare = null
             legalMovesForSelected = emptyList()
         }
@@ -395,18 +441,36 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
                             .padding(start = 8.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
+                        CapturedPiecesDisplay(capturedState)
                         // Top bar
                         TopBar(config, gameState, session, commentator, whiteElapsedSecs, blackElapsedSecs,
                             onPause = { gamePaused = true },
                             onUndo = {
-                                session.undoMove()
+                                fun undoOneMove() {
+                                    val gs = session.getGameState()
+                                    if (gs.moveHistory.isEmpty()) return
+                                    val lastMove = gs.moveHistory.last()
+                                    val board = gs.board
+                                    val moverColor = board.activeColor.opposite()
+                                    if (lastMove.isEnPassant) {
+                                        capturedTracker.undoCapture(PieceType.PAWN, moverColor)
+                                    }
+                                    session.undoMove()
+                                    val boardAfterUndo = session.getGameState().board
+                                    val restoredPiece = boardAfterUndo[lastMove.to]
+                                    if (restoredPiece != null && restoredPiece.color != moverColor) {
+                                        capturedTracker.undoCapture(restoredPiece.type, moverColor)
+                                    }
+                                }
+                                undoOneMove()
                                 if (config.mode == GameMode.HUMAN_VS_ENGINE &&
                                     session.getGameState().moveHistory.isNotEmpty() &&
                                     !session.isPlayerTurn()
-                                ) { session.undoMove() }
+                                ) { undoOneMove() }
                                 commentator.onMoveUndone()
                                 gameState = session.getGameState()
                                 ghostState = session.getGhostState()
+                                capturedState = capturedTracker.getState()
                                 selectedSquare = null
                                 legalMovesForSelected = emptyList()
                             }
@@ -431,19 +495,37 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
                     TopBar(config, gameState, session, commentator, whiteElapsedSecs, blackElapsedSecs,
                         onPause = { gamePaused = true },
                         onUndo = {
-                            session.undoMove()
+                            fun undoOneMove() {
+                                val gs = session.getGameState()
+                                if (gs.moveHistory.isEmpty()) return
+                                val lastMove = gs.moveHistory.last()
+                                val board = gs.board
+                                val moverColor = board.activeColor.opposite()
+                                if (lastMove.isEnPassant) {
+                                    capturedTracker.undoCapture(PieceType.PAWN, moverColor)
+                                }
+                                session.undoMove()
+                                val boardAfterUndo = session.getGameState().board
+                                val restoredPiece = boardAfterUndo[lastMove.to]
+                                if (restoredPiece != null && restoredPiece.color != moverColor) {
+                                    capturedTracker.undoCapture(restoredPiece.type, moverColor)
+                                }
+                            }
+                            undoOneMove()
                             if (config.mode == GameMode.HUMAN_VS_ENGINE &&
                                 session.getGameState().moveHistory.isNotEmpty() &&
                                 !session.isPlayerTurn()
-                            ) { session.undoMove() }
+                            ) { undoOneMove() }
                             commentator.onMoveUndone()
                             gameState = session.getGameState()
                             ghostState = session.getGhostState()
+                            capturedState = capturedTracker.getState()
                             selectedSquare = null
                             legalMovesForSelected = emptyList()
                         }
                     )
                     Spacer(modifier = Modifier.height(8.dp))
+                    CapturedPiecesDisplay(capturedState, modifier = Modifier.padding(horizontal = 8.dp))
                     ChessBoard(
                         board = gameState.board,
                         selectedSquare = selectedSquare,
@@ -608,4 +690,61 @@ private fun GhostControls(
         },
         modifier = Modifier.padding(horizontal = 8.dp)
     )
+}
+
+@Composable
+fun CapturedPiecesDisplay(state: CapturedPiecesTracker.MaterialState, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 4.dp)
+            .testTag("captured-pieces"),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Black's captures (white pieces taken by black)
+        Row(
+            modifier = Modifier.testTag("black-captures"),
+            horizontalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            for (piece in state.blackCaptured) {
+                Text(
+                    text = CapturedPiecesTracker.pieceUnicode(piece, PieceColor.WHITE),
+                    fontSize = 20.sp,
+                    color = ChessColors.OnSurface.copy(alpha = 0.8f)
+                )
+            }
+        }
+
+        // Material balance
+        val adv = state.advantage
+        Text(
+            text = when {
+                adv > 0 -> "⚖️ +$adv"
+                adv < 0 -> "⚖️ $adv"
+                else -> "⚖️ ="
+            },
+            fontSize = 14.sp,
+            color = when {
+                adv > 0 -> ChessColors.Primary
+                adv < 0 -> androidx.compose.ui.graphics.Color(0xFFEF5350)
+                else -> ChessColors.OnSurface.copy(alpha = 0.5f)
+            },
+            modifier = Modifier.testTag("material-balance")
+        )
+
+        // White's captures (black pieces taken by white)
+        Row(
+            modifier = Modifier.testTag("white-captures"),
+            horizontalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            for (piece in state.whiteCaptured) {
+                Text(
+                    text = CapturedPiecesTracker.pieceUnicode(piece, PieceColor.BLACK),
+                    fontSize = 20.sp,
+                    color = ChessColors.OnSurface.copy(alpha = 0.8f)
+                )
+            }
+        }
+    }
 }
