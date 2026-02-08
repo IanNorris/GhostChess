@@ -10,3 +10,4 @@ e2e/playwright-report/
 *.apk
 *.task
 gameplay-demo.mp4
+.kotlin/
