@@ -221,14 +221,16 @@
         }
         #ghost-dismiss-btn:hover { border-color: #999; }
 
-        /* Engine thinking */
-        #engine-thinking-panel {
+        /* Game summary */
+        #game-summary-panel {
             display: none; background: #3D3D3D; border-radius: 8px; padding: 12px;
             margin-top: 8px; font-size: 12px;
         }
-        #engine-thinking-panel.active { display: block; }
-        #thinking-title { color: #FFB74D; font-size: 14px; margin-bottom: 4px; }
-        #thinking-threats { color: #EF5350; }
+        #game-summary-panel.active { display: block; }
+        #summary-status { color: #FFB74D; font-size: 14px; margin-bottom: 2px; }
+        #summary-details { color: #B0B0B0; font-size: 11px; margin-bottom: 4px; }
+        #summary-risks { color: #EF5350; }
+        #summary-suggestion { margin-top: 4px; }
 
         /* Move history */
         #move-history {
@@ -313,7 +315,7 @@
         </div>
 
         <div class="toggle-row">
-            <span>Show computer thinking</span>
+            <span>Show game summary</span>
             <input type="checkbox" data-testid="thinking-toggle" id="thinking-toggle">
         </div>
 
@@ -384,12 +386,11 @@
             </div>
         </div>
 
-        <div id="engine-thinking-panel" data-testid="engine-thinking-panel">
-            <div id="thinking-title" data-testid="thinking-title">🧠 Computer Thinking</div>
-            <div id="thinking-description" data-testid="thinking-description"></div>
-            <div id="thinking-threats" data-testid="thinking-threats"></div>
-            <div id="thinking-strategy" data-testid="thinking-strategy"></div>
-            <div id="thinking-commentary" data-testid="thinking-commentary"></div>
+        <div id="game-summary-panel" data-testid="game-summary-panel">
+            <div id="summary-status" data-testid="summary-status"></div>
+            <div id="summary-details" data-testid="summary-details"></div>
+            <div id="summary-risks" data-testid="summary-risks"></div>
+            <div id="summary-suggestion" data-testid="summary-suggestion"></div>
         </div>
 
         <div id="move-history" data-testid="move-history"></div>

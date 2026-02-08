@@ -6,6 +6,7 @@ import chess.game.Difficulty
 import chess.game.GameConfig
 import chess.game.GameMode
 import chess.game.GameSession
+import chess.game.GameSummaryGenerator
 import chess.ghost.GhostPreviewMode
 import chess.ghost.GhostPreviewState
 import chess.ghost.GhostPreviewStatus
@@ -266,6 +267,7 @@ fun setupMenu() {
             renderBoard()
             renderCapturedPieces()
             renderGhostControls()
+            renderGameSummary()
         }
     })
 
@@ -779,7 +781,7 @@ fun executeMove(s: GameSession, move: Move) {
         renderBoard()
         renderCapturedPieces()
         renderGhostControls()
-        renderThinkingPanel()
+        renderGameSummary()
     }
 }
 
@@ -872,25 +874,30 @@ fun startAutoPlay() {
     }
 }
 
-fun renderThinkingPanel() {
+fun renderGameSummary() {
     val s = session ?: return
-    val ghost = s.getGhostState()
-    val panel = document.getElementById("engine-thinking-panel") as HTMLElement
+    val panel = document.getElementById("game-summary-panel") as HTMLElement
 
-    if (ghost.showThinking && ghost.thinking != null) {
+    if (showThinking) {
+        val engine = SimpleEngine()
+        val summary = GameSummaryGenerator.generate(s.getGameState().board, playerColor, engine)
+
         panel.className = "active"
         panel.style.display = "block"
-        document.getElementById("thinking-description")!!.textContent = ghost.thinking!!.description
-        val threats = ghost.thinking!!.threats
-        document.getElementById("thinking-threats")!!.textContent =
-            if (threats.isNotEmpty()) "⚠️ Threats: ${threats.joinToString(", ")}" else ""
-        val strategy = ghost.thinking!!.strategicNotes
-        document.getElementById("thinking-strategy")!!.textContent =
-            if (strategy.isNotEmpty()) "💡 ${strategy.joinToString(". ")}" else ""
-        ghost.analysis?.let {
-            document.getElementById("thinking-commentary")!!.textContent =
-                if (it.commentary.isNotEmpty()) it.commentary else ""
+
+        val phaseEmoji = when (summary.phase) {
+            "Opening" -> "📖"
+            "Endgame" -> "🏁"
+            else -> "⚔️"
         }
+        document.getElementById("summary-status")!!.textContent =
+            "$phaseEmoji ${summary.whoIsWinning}"
+        document.getElementById("summary-details")!!.textContent =
+            "${summary.evalDescription} · ${summary.phase} · Move ${summary.moveNumber}"
+        document.getElementById("summary-risks")!!.textContent =
+            if (summary.risks.isNotEmpty()) summary.risks.joinToString("\n") { "⚠️ $it" } else ""
+        document.getElementById("summary-suggestion")!!.textContent =
+            if (summary.suggestion.isNotEmpty()) "💡 ${summary.suggestion}" else ""
     } else {
         panel.className = ""
         panel.style.display = "none"
@@ -958,7 +965,7 @@ fun setupGhostButtons() {
             commentator?.onGhostAccepted()
             renderBoard()
             renderGhostControls()
-            renderThinkingPanel()
+            renderGameSummary()
         }
     })
 
@@ -980,7 +987,7 @@ fun setupGhostButtons() {
         commentator?.onGhostDismissed()
         renderBoard()
         renderGhostControls()
-        renderThinkingPanel()
+        renderGameSummary()
     })
 
     // Promotion buttons

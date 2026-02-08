@@ -26,9 +26,10 @@ import chess.speech.GameCommentator
 import chess.speech.NoOpSpeechEngine
 import chess.speech.SpeechEngine
 import chess.ui.board.ChessBoard
-import chess.ui.ghost.EngineThinkingPanel
 import chess.ui.ghost.GhostPreviewControls
 import chess.ui.theme.ChessColors
+import chess.game.GameSummary
+import chess.game.GameSummaryGenerator
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -203,12 +204,12 @@ fun MenuScreen(onStartGame: (GameConfig) -> Unit, speechEngine: SpeechEngine = N
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Show thinking toggle
+        // Show game summary toggle
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.testTag("thinking-toggle-row")
         ) {
-            Text("Show computer thinking", color = ChessColors.OnSurface, fontSize = 14.sp)
+            Text("Show game summary", color = ChessColors.OnSurface, fontSize = 14.sp)
             Spacer(modifier = Modifier.width(8.dp))
             Switch(
                 checked = showThinking,
@@ -324,6 +325,12 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
             }
             vulnerable
         }
+    }
+
+    // Compute game summary when enabled
+    val gameSummary = remember(gameState, config.showEngineThinking) {
+        if (!config.showEngineThinking) null
+        else GameSummaryGenerator.generate(gameState.board, config.playerColor, engine)
     }
 
     // Move timer — only counts during current player's turn (human only)
@@ -556,7 +563,7 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
                             }
                         )
                         Spacer(modifier = Modifier.height(8.dp))
-                        EngineThinkingPanel(state = ghostState)
+                        GameSummaryPanel(summary = gameSummary)
                         Spacer(modifier = Modifier.height(8.dp))
                         GhostControls(session, scope, config, commentator, ghostState,
                             onStateChange = { gs, ghost ->
@@ -626,7 +633,7 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
                         }
                     }
                     Spacer(modifier = Modifier.height(12.dp))
-                    EngineThinkingPanel(state = ghostState, modifier = Modifier.padding(horizontal = 8.dp))
+                    GameSummaryPanel(summary = gameSummary, modifier = Modifier.padding(horizontal = 8.dp))
                     Spacer(modifier = Modifier.height(8.dp))
                     GhostControls(session, scope, config, commentator, ghostState,
                         onStateChange = { gs, ghost ->
