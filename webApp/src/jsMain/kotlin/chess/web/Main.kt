@@ -240,6 +240,7 @@ fun setupMenu() {
 
         menuScreen.asDynamic().style.display = "none"
         gameScreen.asDynamic().style.display = "block"
+        (gameScreen as HTMLElement).classList.add("active")
         gamePaused = false
         resetAllTimers()
         startMoveTimer()
@@ -280,6 +281,7 @@ fun setupMenu() {
         gamePaused = false
         (document.getElementById("pause-modal") as HTMLElement).className = ""
         gameScreen.asDynamic().style.display = "none"
+        (gameScreen as HTMLElement).classList.remove("active")
         menuScreen.asDynamic().style.display = "block"
         updateWinLossDisplay()
     }
