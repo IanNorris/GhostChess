@@ -116,11 +116,12 @@ fun MenuScreen(onStartGame: (GameConfig) -> Unit, speechEngine: SpeechEngine = N
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(24.dp)
             .testTag("menu-screen"),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        Spacer(modifier = Modifier.height(32.dp))
         Text(
             "♔ Chess Simulator",
             color = ChessColors.OnSurface,
@@ -528,8 +529,7 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
                             .padding(start = 8.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        CapturedPiecesDisplay(capturedState)
-                        // Top bar
+                        // Top bar (pause/undo)
                         TopBar(config, gameState, session, commentator, whiteElapsedSecs, blackElapsedSecs,
                             onPause = { gamePaused = true },
                             onUndo = {
@@ -562,15 +562,26 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
                                 legalMovesForSelected = emptyList()
                             }
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        GameSummaryPanel(summary = gameSummary)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        GhostControls(session, scope, config, commentator, ghostState,
-                            onStateChange = { gs, ghost ->
-                                gameState = gs; ghostState = ghost
-                                selectedSquare = null; legalMovesForSelected = emptyList()
-                            }
-                        )
+                        // Material balance
+                        CapturedPiecesDisplay(capturedState)
+                        // Scrollable area for ghost controls + coaching
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth()
+                                .verticalScroll(rememberScrollState()),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            GhostControls(session, scope, config, commentator, ghostState,
+                                onStateChange = { gs, ghost ->
+                                    gameState = gs; ghostState = ghost
+                                    selectedSquare = null; legalMovesForSelected = emptyList()
+                                }
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            GameSummaryPanel(summary = gameSummary)
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
                     }
                 }
             } else {
@@ -579,6 +590,7 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
                     modifier = Modifier.fillMaxSize(),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
+                    // Pause/Undo buttons at the top
                     TopBar(config, gameState, session, commentator, whiteElapsedSecs, blackElapsedSecs,
                         onPause = { gamePaused = true },
                         onUndo = {
@@ -611,8 +623,9 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
                             legalMovesForSelected = emptyList()
                         }
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    // Material balance below buttons
                     CapturedPiecesDisplay(capturedState, modifier = Modifier.padding(horizontal = 8.dp))
+                    // Chess board
                     Box {
                         ChessBoard(
                             board = gameState.board,
@@ -632,15 +645,25 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
                             EngineThinkingOverlay()
                         }
                     }
-                    Spacer(modifier = Modifier.height(12.dp))
-                    GameSummaryPanel(summary = gameSummary, modifier = Modifier.padding(horizontal = 8.dp))
-                    Spacer(modifier = Modifier.height(8.dp))
-                    GhostControls(session, scope, config, commentator, ghostState,
-                        onStateChange = { gs, ghost ->
-                            gameState = gs; ghostState = ghost
-                            selectedSquare = null; legalMovesForSelected = emptyList()
-                        }
-                    )
+                    // Scrollable area for coaching + ghost controls
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState()),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        GhostControls(session, scope, config, commentator, ghostState,
+                            onStateChange = { gs, ghost ->
+                                gameState = gs; ghostState = ghost
+                                selectedSquare = null; legalMovesForSelected = emptyList()
+                            }
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        GameSummaryPanel(summary = gameSummary, modifier = Modifier.padding(horizontal = 8.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
                 }
             }
         }
