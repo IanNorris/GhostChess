@@ -18,7 +18,21 @@ enum class Difficulty(val level: Int) {
     LEVEL_5(5), LEVEL_6(6), LEVEL_7(7), LEVEL_8(8),
     LEVEL_9(9), LEVEL_10(10), LEVEL_11(11), LEVEL_12(12);
 
-    fun label(): String = "Level $level"
+    fun label(): String = when (level) {
+        1 -> "Clueless"
+        2 -> "Beginner"
+        3 -> "Novice"
+        4 -> "Casual"
+        5 -> "Intermediate"
+        6 -> "Keen"
+        7 -> "Skilled"
+        8 -> "Advanced"
+        9 -> "Expert"
+        10 -> "Master"
+        11 -> "Grandmaster"
+        12 -> "Ruthless"
+        else -> "Level $level"
+    }
 
     val searchDepth: Int get() = when (level) {
         in 1..3 -> 1
