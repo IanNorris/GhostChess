@@ -49,6 +49,7 @@ var animatingMove: Move? = null
 var animatingPiece: Piece? = null
 var capturedPiece: Piece? = null
 var animationTimeoutId: Int? = null
+var isGhostAnimating = false
 
 // Config state
 var gameMode = GameMode.HUMAN_VS_ENGINE
@@ -412,7 +413,7 @@ fun renderBoard() {
             if (showThreats && piece != null) {
                 val s = session
                 if (s != null) {
-                    val pColor = s.config.playerColor
+                    val pColor = board.activeColor
                     if (piece.color == pColor && piece.type != PieceType.KING) {
                         if (MoveGenerator.isSquareAttacked(board, square, pColor.opposite())) {
                             classes.add("player-threat")
@@ -519,7 +520,7 @@ fun renderBoard() {
         boardEl.appendChild(overlay)
 
         val pieceEl = document.createElement("span") as HTMLElement
-        pieceEl.className = "animating-piece"
+        pieceEl.className = if (isGhostAnimating) "animating-piece ghost-anim" else "animating-piece"
         pieceEl.textContent = pieceChar(movingPiece.type, movingPiece.color)
         if (movingPiece.color == PieceColor.WHITE) pieceEl.classList.add("piece-white")
         else pieceEl.classList.add("piece-black")
@@ -559,6 +560,7 @@ fun renderBoard() {
                             animatingMove = null
                             animatingPiece = null
                             capturedPiece = null
+                            isGhostAnimating = false
                             renderBoard()
                         }, 300)
                     }, 16)
@@ -567,6 +569,7 @@ fun renderBoard() {
                         animatingMove = null
                         animatingPiece = null
                         capturedPiece = null
+                        isGhostAnimating = false
                         renderBoard()
                     }, 50)
                 }
@@ -869,9 +872,20 @@ fun startAutoPlay() {
             s.getGhostState().status == GhostPreviewStatus.PLAYING
         ) {
             delay(s.getGhostState().autoPlaySpeedMs)
+            val ghostState = s.getGhostState()
+            val nextIndex = ghostState.currentStepIndex + 1
+            if (nextIndex < ghostState.predictedLine.size) {
+                val move = ghostState.predictedLine[nextIndex]
+                val boardBefore = ghostState.boardAtStep ?: s.getGameState().board
+                animatingPiece = boardBefore[move.from]
+                capturedPiece = boardBefore[move.to]
+                animatingMove = move
+                isGhostAnimating = true
+            }
             s.ghostStepForward()
             renderBoard()
             renderGhostControls()
+            delay(650)
         }
     }
 }
@@ -888,7 +902,7 @@ fun renderGameSummary() {
         panel.style.display = "block"
 
         document.getElementById("summary-status")!!.textContent =
-            "🎓 Coach"
+            "Coach"
         document.getElementById("summary-details")!!.textContent =
             "${summary.evalDescription} · ${summary.phase} · Move ${summary.moveNumber}"
 
@@ -921,6 +935,16 @@ fun setupGhostButtons() {
     document.getElementById("ghost-step-forward-btn")!!.addEventListener("click", {
         val s = session ?: return@addEventListener
         try {
+            val ghostState = s.getGhostState()
+            val nextIndex = ghostState.currentStepIndex + 1
+            if (nextIndex < ghostState.predictedLine.size) {
+                val move = ghostState.predictedLine[nextIndex]
+                val boardBefore = ghostState.boardAtStep ?: s.getGameState().board
+                animatingPiece = boardBefore[move.from]
+                capturedPiece = boardBefore[move.to]
+                animatingMove = move
+                isGhostAnimating = true
+            }
             s.ghostStepForward()
             renderBoard()
             renderGhostControls()
@@ -1076,7 +1100,7 @@ fun formatTime(ms: Double): String {
 fun updateTimerDisplay() {
     val s = session ?: return
     val text = if (s.config.mode == GameMode.HUMAN_VS_HUMAN) {
-        "⬜ ${formatTime(whiteTimeMs)}  ⬛ ${formatTime(blackTimeMs)}"
+        "W ${formatTime(whiteTimeMs)} · B ${formatTime(blackTimeMs)}"
     } else {
         val playerTime = if (s.config.playerColor == PieceColor.WHITE) whiteTimeMs else blackTimeMs
         formatTime(playerTime)

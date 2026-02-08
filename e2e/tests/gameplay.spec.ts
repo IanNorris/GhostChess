@@ -92,7 +92,7 @@ test.describe('Chess Gameplay', () => {
       await page.getByTestId('ghost-accept-btn').click({ timeout: 10000 });
       // exd5 capture
       await makeMove(page, 'e4', 'd5');
-      await expect(page.getByTestId('piece-d5')).toBeVisible({ timeout: 5000 });
+      await expect(page.getByTestId('piece-d5')).toBeVisible({ timeout: 10000 });
       // Black pawn should be gone, white pawn should be on d5
     });
   });

@@ -93,7 +93,8 @@ test.describe('Screenshots for README', () => {
     // 5. Qh5 — threatens f7
     await makeMove(page, 'd1', 'h5');
     await page.waitForSelector('#ghost-controls.active', { timeout: 10000 });
-    await page.waitForTimeout(500);
+    await page.getByTestId('ghost-accept-btn').click();
+    await page.waitForTimeout(1000);
     await page.screenshot({ path: `${SCREENSHOT_DIR}/06-threats.png`, fullPage: true });
   });
 

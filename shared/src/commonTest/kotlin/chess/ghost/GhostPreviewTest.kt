@@ -13,7 +13,7 @@ class GhostPreviewTest {
     fun setup() = runTest {
         val engine = SimpleEngine()
         engine.initialize()
-        manager = GhostPreviewManager(engine, depth = 3)
+        manager = GhostPreviewManager(engine, lineLength = 3)
     }
 
     // --- Initial state ---

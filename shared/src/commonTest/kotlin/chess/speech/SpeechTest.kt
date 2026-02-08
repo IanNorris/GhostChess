@@ -2,6 +2,7 @@ package chess.speech
 
 import chess.core.*
 import kotlin.test.*
+import kotlinx.coroutines.test.runTest
 
 class CommentaryGeneratorTest {
 
@@ -358,7 +359,7 @@ class GameCommentatorTest {
     }
 
     @Test
-    fun captureMoveSpeaks() {
+    fun captureMoveSpeaks() = runTest {
         val engine = TestSpeechEngine()
         val commentator = GameCommentator(engine, playerColor = PieceColor.WHITE)
 
@@ -375,7 +376,7 @@ class GameCommentatorTest {
     }
 
     @Test
-    fun normalMoveIsSilent() {
+    fun normalMoveIsSilent() = runTest {
         val engine = TestSpeechEngine()
         val commentator = GameCommentator(engine)
 
