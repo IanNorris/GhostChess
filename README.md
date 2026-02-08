@@ -30,6 +30,10 @@ Built with **Kotlin Multiplatform** (Android + Web) using Compose Multiplatform 
 - **Threat Highlights** — Toggle orange highlights on your attacked pieces and green on opponent's undefended pieces.
 - **Speech Commentary** — Optional text-to-speech banter that reacts to captures, checks, forks, blunders, and more — with correct perspective ("my pawn" vs "your pawn").
 
+### Audio
+- **Sound Effects** — Distinct sounds for moves, captures, checks, checkmate, castling, undo, and illegal moves. Toggle on/off in settings.
+- **Adaptive Background Music** — Calm ambient loop during the opening transitions to an upbeat track as the game enters the midgame/endgame, with smooth crossfade. Toggle on/off in settings.
+
 ### Gameplay
 - **Ghost Preview** — After each move, the engine calculates the best continuation and displays it as ghost pieces. Step through moves, auto-play them, or accept/dismiss the line.
 - **12 Difficulty Levels** — From "Clueless" to "Ruthless", with descriptive names and scaled engine strength.
@@ -104,14 +108,16 @@ shared/                  # Kotlin Multiplatform shared module
     chess/ghost/         # GhostPreviewManager
     chess/game/          # GameSession, GameConfig, Difficulty, GameSummary
     chess/speech/        # BanterLines, CommentaryGenerator, GameCommentator, GameEvents
+    chess/audio/         # AudioEngine, SoundEffect, GamePhase, GamePhaseDetector
   src/commonTest/        # Unit tests
 
 composeApp/              # Compose Multiplatform (Android)
   src/commonMain/        # Compose UI (ChessBoard, GhostControls, GameSummaryPanel, App)
-  src/androidMain/       # Android entry point (MainActivity, TTS engine)
+  src/androidMain/       # Android entry point (MainActivity, TTS engine, AudioEngine)
 
 webApp/                  # Kotlin/JS web frontend (DOM-based)
-  src/jsMain/            # Main.kt + index.html
+  src/jsMain/            # Main.kt, BrowserAudioEngine + index.html
+  src/jsMain/resources/audio/  # Sound effects + background music (MP3)
 
 e2e/                     # Playwright E2E test suite
   tests/
@@ -137,3 +143,5 @@ e2e/                     # Playwright E2E test suite
 ## License
 
 This project is licensed under the **GNU General Public License v3.0** — see the [LICENSE](LICENSE) file for details.
+
+All audio assets are **CC0 (public domain)** — see [AUDIO-LICENSES.md](AUDIO-LICENSES.md) for details.

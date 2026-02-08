@@ -420,6 +420,14 @@
         <div class="promotion-dialog" style="min-width: 240px;">
             <h3 style="margin-bottom:20px;">Game Paused</h3>
             <div style="display:flex; flex-direction:column; gap:12px;">
+                <div class="toggle-row" style="justify-content:space-between;">
+                    <span>Sound effects</span>
+                    <input type="checkbox" data-testid="sfx-toggle" id="sfx-toggle" checked>
+                </div>
+                <div class="toggle-row" style="justify-content:space-between;">
+                    <span>Background music</span>
+                    <input type="checkbox" data-testid="music-toggle" id="music-toggle">
+                </div>
                 <button id="resume-btn" data-testid="resume-btn" style="padding:12px 24px; font-size:16px; background:#6BAF6B; color:#fff; border:none; border-radius:8px; cursor:pointer;">Resume</button>
                 <button id="quit-btn" data-testid="quit-btn" style="padding:12px 24px; font-size:16px; background:#555; color:#E0E0E0; border:1px solid #666; border-radius:8px; cursor:pointer;">Return to Menu</button>
             </div>

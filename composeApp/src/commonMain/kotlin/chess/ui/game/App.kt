@@ -13,6 +13,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import chess.audio.AudioEngine
+import chess.audio.GamePhase
+import chess.audio.GamePhaseDetector
+import chess.audio.NoOpAudioEngine
+import chess.audio.SoundEffect
 import chess.core.*
 import chess.engine.SimpleEngine
 import chess.game.Difficulty
@@ -44,7 +49,7 @@ class NoOpSettingsStore : SettingsStore {
 }
 
 @Composable
-fun App(speechEngine: SpeechEngine = NoOpSpeechEngine(), settingsStore: SettingsStore = NoOpSettingsStore()) {
+fun App(speechEngine: SpeechEngine = NoOpSpeechEngine(), settingsStore: SettingsStore = NoOpSettingsStore(), audioEngine: AudioEngine = NoOpAudioEngine()) {
     var screen by remember { mutableStateOf<Screen>(Screen.Menu) }
 
     MaterialTheme {
@@ -63,6 +68,7 @@ fun App(speechEngine: SpeechEngine = NoOpSpeechEngine(), settingsStore: Settings
                 is Screen.Game -> GameScreen(
                     config = current.config,
                     speechEngine = speechEngine,
+                    audioEngine = audioEngine,
                     onBack = { screen = Screen.Menu }
                 )
             }
@@ -290,7 +296,7 @@ fun MenuScreen(onStartGame: (GameConfig) -> Unit, speechEngine: SpeechEngine = N
 }
 
 @Composable
-fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine(), onBack: () -> Unit) {
+fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine(), audioEngine: AudioEngine = NoOpAudioEngine(), onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
     val engine = remember { SimpleEngine() }
     val session = remember { GameSession(engine, config) }
@@ -377,6 +383,8 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
         session.initialize()
         initialized = true
         commentator.onGameStart(config.playerColor == PieceColor.BLACK)
+        audioEngine.playSound(SoundEffect.GAME_START)
+        audioEngine.setMusicPhase(GamePhase.OPENING)
         if (config.mode == GameMode.HUMAN_VS_ENGINE &&
             config.playerColor == PieceColor.BLACK
         ) {
@@ -400,6 +408,7 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
                 capturedState = capturedTracker.getState()
             }
             commentator.onComputerMove(engineMove, boardBefore, gameState.board)
+            audioEngine.playSound(SoundEffect.MOVE)
         }
     }
 
@@ -439,6 +448,9 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
                     capturedState = capturedTracker.getState()
 
                     commentator.onPlayerMove(move, boardBeforePlayer, gameState.board)
+                    audioEngine.playSound(detectMoveSound(move, boardBeforePlayer, gameState.board))
+                    val moveCount = session.getGameState().moveHistory.size
+                    audioEngine.setMusicPhase(GamePhaseDetector.detect(gameState.board, moveCount))
                     selectedSquare = null
                     legalMovesForSelected = emptyList()
 
@@ -465,6 +477,9 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
                         }
                         capturedState = capturedTracker.getState()
                         commentator.onComputerMove(engineMove, boardBeforeEngine, gameState.board)
+                        audioEngine.playSound(detectMoveSound(engineMove, boardBeforeEngine, gameState.board))
+                        val engineMoveCount = session.getGameState().moveHistory.size
+                        audioEngine.setMusicPhase(GamePhaseDetector.detect(gameState.board, engineMoveCount))
                     }
 
                     // Check for game end
@@ -478,6 +493,12 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
                             else -> null
                         }
                         commentator.onGameEnd(playerWon, gameState.moveHistory.size)
+                        if (gameState.status == GameStatus.DRAW) {
+                            audioEngine.playSound(SoundEffect.DRAW)
+                        } else {
+                            audioEngine.playSound(SoundEffect.CHECKMATE)
+                        }
+                        audioEngine.stopAll()
                     }
 
                     session.requestGhostPreview()
@@ -495,6 +516,7 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
             if (selectedSquare != null && piece?.color != gameState.board.activeColor) {
                 val inCheck = MoveGenerator.isInCheck(gameState.board, gameState.board.activeColor)
                 commentator.onIllegalMoveAttempt(inCheck)
+                audioEngine.playSound(SoundEffect.ILLEGAL)
             }
             selectedSquare = null
             legalMovesForSelected = emptyList()
@@ -573,6 +595,7 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
                                     !session.isPlayerTurn()
                                 ) { undoOneMove() }
                                 commentator.onMoveUndone()
+                                audioEngine.playSound(SoundEffect.UNDO)
                                 gameState = session.getGameState()
                                 ghostState = session.getGhostState()
                                 capturedState = capturedTracker.getState()
@@ -634,6 +657,7 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
                                 !session.isPlayerTurn()
                             ) { undoOneMove() }
                             commentator.onMoveUndone()
+                            audioEngine.playSound(SoundEffect.UNDO)
                             gameState = session.getGameState()
                             ghostState = session.getGhostState()
                             capturedState = capturedTracker.getState()
@@ -704,6 +728,36 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
                 ) {
                     Text("Game Paused", color = ChessColors.OnSurface, fontSize = 20.sp)
                     Spacer(modifier = Modifier.height(8.dp))
+
+                    // Sound effects toggle
+                    var sfxOn by remember { mutableStateOf(audioEngine.sfxEnabled) }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.width(200.dp).testTag("sfx-toggle-row")
+                    ) {
+                        Text("Sound effects", color = ChessColors.OnSurface, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                        Switch(
+                            checked = sfxOn,
+                            onCheckedChange = { sfxOn = it; audioEngine.sfxEnabled = it },
+                            modifier = Modifier.testTag("sfx-toggle")
+                        )
+                    }
+
+                    // Background music toggle
+                    var musicOn by remember { mutableStateOf(audioEngine.musicEnabled) }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.width(200.dp).testTag("music-toggle-row")
+                    ) {
+                        Text("Background music", color = ChessColors.OnSurface, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                        Switch(
+                            checked = musicOn,
+                            onCheckedChange = { musicOn = it; audioEngine.musicEnabled = it },
+                            modifier = Modifier.testTag("music-toggle")
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
                     Button(
                         onClick = { gamePaused = false },
                         modifier = Modifier.width(200.dp).testTag("resume-btn"),
@@ -714,6 +768,7 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
                     OutlinedButton(
                         onClick = {
                             gamePaused = false
+                            audioEngine.stopAll()
                             onBack()
                         },
                         modifier = Modifier.width(200.dp).testTag("quit-btn")
@@ -921,4 +976,21 @@ fun CapturedPiecesDisplay(state: CapturedPiecesTracker.MaterialState, modifier: 
             )
         }
     }
+}
+
+/** Determine the right sound effect for a move. */
+private fun detectMoveSound(move: Move, boardBefore: Board, boardAfter: Board): SoundEffect {
+    if (MoveGenerator.isCheckmate(boardAfter)) return SoundEffect.CHECKMATE
+    if (MoveGenerator.isInCheck(boardAfter, boardAfter.activeColor)) return SoundEffect.CHECK
+    if (MoveGenerator.isDraw(boardAfter)) return SoundEffect.DRAW
+    val movedPiece = boardBefore[move.from]
+    if (movedPiece?.type == PieceType.KING && kotlin.math.abs(move.from.file - move.to.file) == 2) {
+        return SoundEffect.CASTLE
+    }
+    val captured = boardBefore[move.to]
+    if (captured != null) return SoundEffect.CAPTURE
+    if (movedPiece?.type == PieceType.PAWN && move.from.file != move.to.file) {
+        return SoundEffect.CAPTURE // en passant
+    }
+    return SoundEffect.MOVE
 }

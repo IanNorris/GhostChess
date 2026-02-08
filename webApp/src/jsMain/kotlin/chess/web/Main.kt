@@ -1,5 +1,8 @@
 package chess.web
 
+import chess.audio.GamePhase
+import chess.audio.GamePhaseDetector
+import chess.audio.SoundEffect
 import chess.core.*
 import chess.engine.SimpleEngine
 import chess.game.Difficulty
@@ -100,6 +103,7 @@ fun updateBanterDisplay() {
 }
 
 val speechEngine = BrowserSpeechEngine()
+val audioEngine = BrowserAudioEngine()
 var commentator: GameCommentator? = null
 
 fun main() {
@@ -114,6 +118,8 @@ fun saveSettings() {
     window.localStorage.setItem("ghostchess_difficulty", difficulty.name)
     window.localStorage.setItem("ghostchess_speech", speechEngine.enabled.toString())
     window.localStorage.setItem("ghostchess_threats", showThreats.toString())
+    window.localStorage.setItem("ghostchess_sfx", audioEngine.sfxEnabled.toString())
+    window.localStorage.setItem("ghostchess_music", audioEngine.musicEnabled.toString())
 }
 
 fun loadSettings() {
@@ -137,6 +143,12 @@ fun loadSettings() {
     }
     window.localStorage.getItem("ghostchess_threats")?.let {
         showThreats = it == "true"
+    }
+    window.localStorage.getItem("ghostchess_sfx")?.let {
+        audioEngine.sfxEnabled = it == "true"
+    }
+    window.localStorage.getItem("ghostchess_music")?.let {
+        audioEngine.musicEnabled = it == "true"
     }
 }
 
@@ -216,6 +228,19 @@ fun setupMenu() {
     val threatsToggle = document.getElementById("threats-toggle") as HTMLInputElement
     threatsToggle.onchange = { showThreats = threatsToggle.checked; saveSettings(); renderBoard(); null }
 
+    // Sound effects toggle (in pause menu)
+    val sfxToggle = document.getElementById("sfx-toggle") as HTMLInputElement
+    sfxToggle.onchange = { audioEngine.sfxEnabled = sfxToggle.checked; saveSettings(); null }
+
+    // Music toggle (in pause menu)
+    val musicToggle = document.getElementById("music-toggle") as HTMLInputElement
+    musicToggle.onchange = {
+        audioEngine.musicEnabled = musicToggle.checked
+        if (musicToggle.checked) audioEngine.startMusic() else audioEngine.stopMusic()
+        saveSettings()
+        null
+    }
+
     // Restore UI from loaded settings
     updateModeChips()
     updateColorChips()
@@ -225,6 +250,8 @@ fun setupMenu() {
     thinkingToggle.checked = showThinking
     speechToggle.checked = speechEngine.enabled
     threatsToggle.checked = showThreats
+    sfxToggle.checked = audioEngine.sfxEnabled
+    musicToggle.checked = audioEngine.musicEnabled
 
     // Win/loss display
     updateWinLossDisplay()
@@ -249,6 +276,9 @@ fun setupMenu() {
         scope.launch {
             session!!.initialize()
             commentator?.onGameStart(playerColor == PieceColor.BLACK)
+            audioEngine.playSound(SoundEffect.GAME_START)
+            audioEngine.setMusicPhase(GamePhase.OPENING)
+            if (audioEngine.musicEnabled) audioEngine.startMusic()
 
             // If playing black, engine goes first
             if (gameMode == GameMode.HUMAN_VS_ENGINE && playerColor == PieceColor.BLACK) {
@@ -263,6 +293,7 @@ fun setupMenu() {
                 capturedPiece = boardBefore[engineMove.to]
                 animatingMove = engineMove
                 commentator?.onComputerMove(engineMove, boardBefore, boardAfter)
+                audioEngine.playSound(SoundEffect.MOVE)
                 resetMoveTimer()
             }
 
@@ -276,6 +307,8 @@ fun setupMenu() {
     fun returnToMenu() {
         autoPlayJob?.cancel()
         stopMoveTimer()
+        audioEngine.stopAll()
+        audioEngine.setMusicPhase(GamePhase.MENU)
         session = null
         selectedSquare = null
         legalMovesForSelected = emptyList()
@@ -287,10 +320,12 @@ fun setupMenu() {
         updateWinLossDisplay()
     }
 
-    // Pause button
+    // Pause button — sync toggle states when opening
     document.getElementById("pause-btn")!!.addEventListener("click", {
         gamePaused = true
         stopMoveTimer()
+        sfxToggle.checked = audioEngine.sfxEnabled
+        musicToggle.checked = audioEngine.musicEnabled
         (document.getElementById("pause-modal") as HTMLElement).className = "active"
     })
 
@@ -344,6 +379,7 @@ fun setupMenu() {
                 undoOneMove()
             }
             commentator?.onMoveUndone()
+            audioEngine.playSound(SoundEffect.UNDO)
             selectedSquare = null
             legalMovesForSelected = emptyList()
             resetMoveTimer()
@@ -712,6 +748,7 @@ fun onSquareClick(square: Square) {
             // Player tried an illegal move with a piece selected
             val inCheck = MoveGenerator.isInCheck(board, board.activeColor)
             commentator?.onIllegalMoveAttempt(inCheck)
+            audioEngine.playSound(SoundEffect.ILLEGAL)
         }
         selectedSquare = null
         legalMovesForSelected = emptyList()
@@ -741,6 +778,15 @@ fun executeMove(s: GameSession, move: Move) {
         }
 
         commentator?.onPlayerMove(move, boardBeforePlayer, boardAfterPlayer)
+
+        // Play sound effect for player move
+        audioEngine.playSound(detectMoveSound(move, boardBeforePlayer, boardAfterPlayer))
+
+        // Update music phase
+        val moveCount = s.getGameState().moveHistory.size
+        val phase = GamePhaseDetector.detect(boardAfterPlayer, moveCount)
+        audioEngine.setMusicPhase(phase)
+
         selectedSquare = null
         legalMovesForSelected = emptyList()
         resetMoveTimer()
@@ -773,6 +819,10 @@ fun executeMove(s: GameSession, move: Move) {
             capturedPiece = boardBeforeEngine[engineMove.to]
             animatingMove = engineMove
             commentator?.onComputerMove(engineMove, boardBeforeEngine, boardAfterEngine)
+            audioEngine.playSound(detectMoveSound(engineMove, boardBeforeEngine, boardAfterEngine))
+            val engineMoveCount = s.getGameState().moveHistory.size
+            val enginePhase = GamePhaseDetector.detect(boardAfterEngine, engineMoveCount)
+            audioEngine.setMusicPhase(enginePhase)
             resetMoveTimer()
         }
 
@@ -1134,6 +1184,29 @@ fun updateWinLossDisplay() {
     el.textContent = "${difficulty.label()} — Wins: $w  Losses: $l"
 }
 
+/** Determine the right sound effect for a move. */
+fun detectMoveSound(move: Move, boardBefore: Board, boardAfter: Board): SoundEffect {
+    // Checkmate takes priority
+    if (MoveGenerator.isCheckmate(boardAfter)) return SoundEffect.CHECKMATE
+    // Check
+    if (MoveGenerator.isInCheck(boardAfter, boardAfter.activeColor)) return SoundEffect.CHECK
+    // Draw
+    if (MoveGenerator.isDraw(boardAfter)) return SoundEffect.DRAW
+    // Castling
+    val movedPiece = boardBefore[move.from]
+    if (movedPiece?.type == PieceType.KING && kotlin.math.abs(move.from.file - move.to.file) == 2) {
+        return SoundEffect.CASTLE
+    }
+    // Capture (normal or en passant)
+    val captured = boardBefore[move.to]
+    if (captured != null) return SoundEffect.CAPTURE
+    if (movedPiece?.type == PieceType.PAWN && move.from.file != move.to.file) {
+        return SoundEffect.CAPTURE  // en passant
+    }
+    // Normal move
+    return SoundEffect.MOVE
+}
+
 fun checkAndRecordGameEnd() {
     val s = session ?: return
     val status = s.getGameState().status
@@ -1148,4 +1221,11 @@ fun checkAndRecordGameEnd() {
     }
     val playerWonOrNull: Boolean? = if (status == GameStatus.DRAW) null else playerWon
     commentator?.onGameEnd(playerWonOrNull, s.getGameState().moveHistory.size)
+
+    // Play game-end sound
+    when (status) {
+        GameStatus.DRAW -> audioEngine.playSound(SoundEffect.DRAW)
+        else -> audioEngine.playSound(SoundEffect.CHECKMATE)
+    }
+    audioEngine.stopMusic()
 }

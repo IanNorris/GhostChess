@@ -11,3 +11,6 @@ e2e/playwright-report/
 *.task
 gameplay-demo.mp4
 .kotlin/
+
+# Original music assets (47MB) — re-download with scripts/download_originals.sh
+assets/audio/music-originals/

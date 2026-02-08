@@ -51,18 +51,21 @@ class AndroidSettingsStore(context: Context) : SettingsStore {
 
 class MainActivity : ComponentActivity() {
     private var speechEngine: AndroidSpeechEngine? = null
+    private var audioEngine: AndroidAudioEngine? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         speechEngine = AndroidSpeechEngine(this)
+        audioEngine = AndroidAudioEngine(this)
         val settingsStore = AndroidSettingsStore(this)
         setContent {
-            App(speechEngine = speechEngine!!, settingsStore = settingsStore)
+            App(speechEngine = speechEngine!!, settingsStore = settingsStore, audioEngine = audioEngine!!)
         }
     }
 
     override fun onDestroy() {
         speechEngine?.shutdown()
+        audioEngine?.release()
         super.onDestroy()
     }
 }
