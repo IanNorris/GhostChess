@@ -42,7 +42,9 @@ class CommentaryGenerator(
             if (event.playerWon) BanterLines.pick(BanterLines.checkmatePlayerWins)
             else BanterLines.pick(BanterLines.checkmateComputerWins)
         is GameEvent.Stalemate -> BanterLines.pick(BanterLines.stalemate)
-        is GameEvent.Check -> BanterLines.pick(BanterLines.check)
+        is GameEvent.Check ->
+            if (event.isPlayerChecked) BanterLines.pick(BanterLines.check)
+            else BanterLines.pick(BanterLines.checkByPlayer)
         is GameEvent.IllegalMoveAttempt ->
             if (event.inCheck) BanterLines.pick(BanterLines.illegalMoveInCheck)
             else BanterLines.pick(BanterLines.illegalMoveGeneral)
@@ -50,14 +52,22 @@ class CommentaryGenerator(
             BanterLines.openingDetected, mapOf("opening" to event.openingName)
         )
         is GameEvent.PieceCaptured -> captureComment(event)
-        is GameEvent.Promotion -> BanterLines.pick(
-            BanterLines.promotion, mapOf("piece" to BanterLines.pieceName(event.pieceType))
-        )
-        is GameEvent.Castling -> BanterLines.pick(BanterLines.castling)
-        is GameEvent.Blunder -> BanterLines.pick(BanterLines.blunder)
+        is GameEvent.Promotion -> {
+            val params = mapOf("piece" to BanterLines.pieceName(event.pieceType))
+            if (event.isPlayerPromotion) BanterLines.pick(BanterLines.promotion, params)
+            else BanterLines.pick(BanterLines.promotionByComputer, params)
+        }
+        is GameEvent.Castling ->
+            if (event.isPlayerCastling) BanterLines.pick(BanterLines.castling)
+            else BanterLines.pick(BanterLines.castlingByComputer)
+        is GameEvent.Blunder ->
+            if (event.isPlayerBlunder) BanterLines.pick(BanterLines.blunder)
+            else BanterLines.pick(BanterLines.blunderByComputer)
         is GameEvent.GoodMove ->
-            if (event.evalGain > 2.0) BanterLines.pick(BanterLines.greatMove)
-            else BanterLines.pick(BanterLines.goodMove)
+            if (event.isPlayerMove) {
+                if (event.evalGain > 2.0) BanterLines.pick(BanterLines.greatMove)
+                else BanterLines.pick(BanterLines.goodMove)
+            } else null // Don't praise computer's own moves
         is GameEvent.AdvantageShift ->
             if (event.playerLeading) BanterLines.pick(BanterLines.playerTakingLead)
             else BanterLines.pick(BanterLines.computerTakingLead)

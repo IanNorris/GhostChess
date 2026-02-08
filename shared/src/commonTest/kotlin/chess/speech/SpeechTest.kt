@@ -33,7 +33,7 @@ class CommentaryGeneratorTest {
 
     @Test
     fun checkProducesCommentary() {
-        val events = listOf(GameEvent.Check(PieceColor.BLACK))
+        val events = listOf(GameEvent.Check(PieceColor.BLACK, isPlayerChecked = true))
         val text = generator.generateCommentary(events)
         assertEquals("Check!", text)
     }
@@ -80,7 +80,7 @@ class CommentaryGeneratorTest {
 
     @Test
     fun promotionIncludesPieceName() {
-        val events = listOf(GameEvent.Promotion(PieceType.QUEEN))
+        val events = listOf(GameEvent.Promotion(PieceType.QUEEN, isPlayerPromotion = true))
         val text = generator.generateCommentary(events)
         assertNotNull(text)
         assertTrue(text.contains("queen", ignoreCase = true))
@@ -88,7 +88,7 @@ class CommentaryGeneratorTest {
 
     @Test
     fun castlingProducesCommentary() {
-        val events = listOf(GameEvent.Castling)
+        val events = listOf(GameEvent.Castling(isPlayerCastling = true))
         val text = generator.generateCommentary(events)
         assertNotNull(text)
         assertTrue(text.contains("Castling", ignoreCase = true))
@@ -178,7 +178,7 @@ class CommentaryGeneratorTest {
     fun checkTakesPriorityOverCapture() {
         val events = listOf(
             GameEvent.PieceCaptured(PieceType.PAWN, PieceColor.WHITE, true),
-            GameEvent.Check(PieceColor.BLACK)
+            GameEvent.Check(PieceColor.BLACK, isPlayerChecked = true)
         )
         val text = generator.generateCommentary(events)
         assertNotNull(text)

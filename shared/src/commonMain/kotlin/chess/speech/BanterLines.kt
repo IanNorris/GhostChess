@@ -192,6 +192,7 @@ object BanterLines {
     )
 
     // === CHECK ===
+    // === CHECK (engine checks player) ===
     val check = listOf(
         "Check!",
         "Check! Watch your king.",
@@ -213,6 +214,30 @@ object BanterLines {
         "I've got your king in my sights. Check!",
         "Check! Let's see you wriggle out of this.",
         "Check! The clock is ticking on your king."
+    )
+
+    // === CHECK (player checks engine) ===
+    val checkByPlayer = listOf(
+        "Check! You've got my king on the run.",
+        "Ooh, check! My king needs to move.",
+        "Check! Good pressure on my king.",
+        "You're checking me! Well played.",
+        "Check! I need to deal with that.",
+        "My king is under attack. Nice move!",
+        "Check! You've found a strong square.",
+        "Checking my king? Bold move!",
+        "Check! Let me find a safe square.",
+        "My king's in trouble. Good check!",
+        "You've put my king in check!",
+        "Check! That's a threatening move.",
+        "My king has to run. Good check!",
+        "Check! You're keeping the pressure up.",
+        "Check on my king! I need to be careful.",
+        "That's check on me! Impressive.",
+        "My king is exposed. Nice check!",
+        "Check! You're making my king sweat.",
+        "Strong check! My king needs shelter.",
+        "Check! I didn't see that coming."
     )
 
     // === CHECKMATE ===
@@ -286,7 +311,7 @@ object BanterLines {
         "That's stalemate. A gentleman's draw."
     )
 
-    // === BLUNDERS ===
+    // === BLUNDERS (player blunders) ===
     val blunder = listOf(
         "Oh no. Are you sure about that?",
         "That might not have been the best move.",
@@ -308,6 +333,30 @@ object BanterLines {
         "That's a misstep. The position shifts.",
         "Are you sure? That looks like trouble.",
         "That move opened the door for me. Thank you!"
+    )
+
+    // === BLUNDERS (computer blunders) ===
+    val blunderByComputer = listOf(
+        "Oops. I don't think that was my best move.",
+        "Hmm, that wasn't great on my part.",
+        "I may have just made a mistake there.",
+        "That's not what I intended. Bad move by me.",
+        "I blundered. Pretend you didn't see that.",
+        "That was careless of me. Take advantage!",
+        "I think I just weakened my own position.",
+        "Not my finest moment. That was a mistake.",
+        "Well, that's embarrassing. Bad move.",
+        "I slipped up there. Your opportunity!",
+        "That wasn't ideal. I've hurt my own game.",
+        "Oops, I think I just gave you an opening.",
+        "My algorithm is having a bad day.",
+        "I'll admit it - that was a blunder on my part.",
+        "Not sure what I was thinking with that move.",
+        "I've made an error. Don't let me off easy!",
+        "That move weakened my position. Sorry, me.",
+        "I just handed you an advantage. Clumsy.",
+        "That wasn't the plan. I've made a mistake.",
+        "Even I make mistakes sometimes. That was one."
     )
 
     // === GOOD MOVES ===
@@ -523,7 +572,7 @@ object BanterLines {
         "Sorry, that's not a legal option."
     )
 
-    // === CASTLING ===
+    // === CASTLING (player castles) ===
     val castling = listOf(
         "Castling! Nice and safe.",
         "Smart move - getting the king to safety.",
@@ -547,7 +596,31 @@ object BanterLines {
         "Castling! Time to launch an attack."
     )
 
-    // === PROMOTION ===
+    // === CASTLING (computer castles) ===
+    val castlingByComputer = listOf(
+        "I'm castling. Safety first!",
+        "I'll tuck my king away. Castle!",
+        "Castling! My king is secure now.",
+        "I'm getting my king to safety.",
+        "I'll castle here. Seems like the right time.",
+        "My king finds shelter. Castled!",
+        "I'm castling. Time to connect my rooks.",
+        "Castle! My king is out of harm's way.",
+        "I'm securing my king. Good old castling.",
+        "Castling for me. King safety achieved.",
+        "I'll take my king to a safer square.",
+        "My king retreats. Castle!",
+        "I'm castling! The fortress goes up.",
+        "Time for me to castle. King is protected.",
+        "Castling! Now my king can relax.",
+        "I'll castle and get organised.",
+        "My king heads to safety. Castled!",
+        "I'm building my fortress. Castle!",
+        "Castling! My king thanks me.",
+        "I'll get my king out of the centre. Castle!"
+    )
+
+    // === PROMOTION (player promotes) ===
     val promotion = listOf(
         "Pawn promoted to {piece}! Big moment.",
         "A new {piece} joins the board!",
@@ -569,6 +642,30 @@ object BanterLines {
         "Promotion! Welcome to the board, {piece}.",
         "That pawn just became a {piece}. Watch out!",
         "From pawn to {piece}! An incredible journey."
+    )
+
+    // === PROMOTION (computer promotes) ===
+    val promotionByComputer = listOf(
+        "I'm promoting my pawn to a {piece}!",
+        "My pawn becomes a {piece}. Excellent!",
+        "Promotion! I've got a new {piece}.",
+        "I'll take a {piece} please. Promoted!",
+        "My pawn made it! A new {piece} for me.",
+        "I'm promoting to {piece}. This changes things.",
+        "A shiny new {piece} for my army!",
+        "My pawn transforms into a {piece}!",
+        "Promotion! My {piece} enters the battle.",
+        "I'll upgrade to a {piece}. Thank you!",
+        "My pawn has earned a promotion to {piece}.",
+        "A {piece}! My pawn's long march pays off.",
+        "I'm getting a {piece}. Promotion!",
+        "My humble pawn becomes a mighty {piece}!",
+        "Promoted to {piece}! I'm gaining strength.",
+        "New {piece} incoming! My pawn made it.",
+        "I promote to {piece}. The tables are turning.",
+        "My pawn's journey ends as a {piece}!",
+        "A fresh {piece} for me. Promoted!",
+        "I'll take a {piece}. My pawn deserved it."
     )
 
     // === MOVE UNDONE ===

@@ -26,6 +26,7 @@ enum class Difficulty(val level: Int) {
         in 5..6 -> 3
         in 7..8 -> 4
         in 9..10 -> 5
+        in 11..12 -> 6
         else -> 6
     }
 
@@ -33,24 +34,16 @@ enum class Difficulty(val level: Int) {
     val randomMoveProbability: Double get() = when (level) {
         1 -> 0.5
         2 -> 0.35
-        3 -> 0.25
-        4 -> 0.15
-        5 -> 0.10
-        6 -> 0.05
+        3 -> 0.20
+        4 -> 0.10
+        5 -> 0.05
         else -> 0.0
     }
 
     fun description(): String {
         val depthDesc = "Search depth $searchDepth"
-        val randomDesc = when {
-            randomMoveProbability >= 0.5 -> "50% random moves"
-            randomMoveProbability >= 0.35 -> "35% random moves"
-            randomMoveProbability >= 0.25 -> "25% random moves"
-            randomMoveProbability >= 0.15 -> "15% random moves"
-            randomMoveProbability >= 0.10 -> "10% random moves"
-            randomMoveProbability >= 0.05 -> "5% random moves"
-            else -> "no randomness"
-        }
+        val randomPct = (randomMoveProbability * 100).toInt()
+        val randomDesc = if (randomPct > 0) "$randomPct% random moves" else "no randomness"
         return "$depthDesc, $randomDesc"
     }
 
