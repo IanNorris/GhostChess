@@ -345,6 +345,48 @@ fun setupMenu() {
         null
     }
 
+    // Speech + voice in pause menu
+    val pauseSpeechToggle = document.getElementById("pause-speech-toggle") as HTMLInputElement
+    val pauseVoiceOptions = document.getElementById("pause-voice-options") as HTMLElement
+    val pauseVoiceSelect = document.getElementById("pause-voice-select") as HTMLSelectElement
+
+    fun populatePauseVoices() {
+        pauseVoiceSelect.innerHTML = "<option value=\"\">Default</option>"
+        val count = js("window.speechSynthesis.getVoices().length") as Int
+        for (i in 0 until count) {
+            val name = js("window.speechSynthesis.getVoices()[i].name") as String
+            val lang = js("window.speechSynthesis.getVoices()[i].lang") as String
+            val uri = js("window.speechSynthesis.getVoices()[i].voiceURI") as String
+            val option = document.createElement("option") as HTMLOptionElement
+            option.value = uri
+            option.textContent = "$name ($lang)"
+            if (uri == speechEngine.selectedVoiceUri) option.selected = true
+            pauseVoiceSelect.appendChild(option)
+        }
+    }
+
+    fun updatePauseVoiceVisibility() {
+        pauseVoiceOptions.style.display = if (pauseSpeechToggle.checked) "block" else "none"
+    }
+
+    pauseSpeechToggle.onchange = {
+        speechEngine.enabled = pauseSpeechToggle.checked
+        speechToggle.checked = pauseSpeechToggle.checked
+        updateVoiceVisibility()
+        updatePauseVoiceVisibility()
+        saveSettings()
+        null
+    }
+
+    pauseVoiceSelect.onchange = {
+        val uri = pauseVoiceSelect.value
+        speechEngine.selectedVoiceUri = uri.ifEmpty { null }
+        voiceSelect.value = uri
+        saveSettings()
+        speechEngine.speak("Voice changed")
+        null
+    }
+
     // Restore UI from loaded settings
     updateModeChips()
     updateColorChips()
@@ -453,6 +495,9 @@ fun setupMenu() {
         stopMoveTimer()
         sfxToggle.checked = audioEngine.sfxEnabled
         musicToggle.checked = audioEngine.musicEnabled
+        pauseSpeechToggle.checked = speechEngine.enabled
+        populatePauseVoices()
+        updatePauseVoiceVisibility()
         (document.getElementById("pause-modal") as HTMLElement).className = "active"
     })
 

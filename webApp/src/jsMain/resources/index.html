@@ -450,6 +450,15 @@
                     <span>Background music</span>
                     <input type="checkbox" data-testid="music-toggle" id="music-toggle">
                 </div>
+                <div class="toggle-row" style="justify-content:space-between;">
+                    <span>Speech commentary</span>
+                    <input type="checkbox" data-testid="pause-speech-toggle" id="pause-speech-toggle">
+                </div>
+                <div id="pause-voice-options" style="display:none;">
+                    <select id="pause-voice-select" style="width:100%; padding:6px; border-radius:6px; border:1px solid #666; background:#3D3D3D; color:#E0E0E0; font-size:13px;">
+                        <option value="">Default</option>
+                    </select>
+                </div>
                 <button id="resume-btn" data-testid="resume-btn" style="padding:12px 24px; font-size:16px; background:#6BAF6B; color:#fff; border:none; border-radius:8px; cursor:pointer;">Resume</button>
                 <button id="quit-btn" data-testid="quit-btn" style="padding:12px 24px; font-size:16px; background:#555; color:#E0E0E0; border:1px solid #666; border-radius:8px; cursor:pointer;">Return to Menu</button>
             </div>
