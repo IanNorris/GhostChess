@@ -338,7 +338,7 @@ fun setupMenu() {
         speechEngine.selectedVoiceUri = uri.ifEmpty { null }
         saveSettings()
         // Preview the selected voice
-        speechEngine.speak("Ghost Chess ready")
+        speechEngine.speak(chess.speech.BanterLines.randomPreviewLine())
         null
     }
 
@@ -399,7 +399,7 @@ fun setupMenu() {
         speechEngine.selectedVoiceUri = uri.ifEmpty { null }
         voiceSelect.value = uri
         saveSettings()
-        speechEngine.speak("Voice changed")
+        speechEngine.speak(chess.speech.BanterLines.randomPreviewLine())
         null
     }
 

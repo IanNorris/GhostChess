@@ -18,6 +18,9 @@ object BanterLines {
         return text
     }
 
+    /** Get a random game start line for voice preview */
+    fun randomPreviewLine(): String = pick(gameStart)
+
     fun pieceName(type: PieceType): String = when (type) {
         PieceType.KING -> "king"
         PieceType.QUEEN -> "queen"

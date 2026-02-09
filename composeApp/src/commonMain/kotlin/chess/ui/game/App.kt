@@ -970,7 +970,7 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
                                             onClick = {
                                                 selectedVoice = voice
                                                 speechEngine.setVoice(voice)
-                                                speechEngine.speak("Voice changed")
+                                                speechEngine.speak(chess.speech.BanterLines.randomPreviewLine())
                                                 expanded = false
                                             }
                                         )
