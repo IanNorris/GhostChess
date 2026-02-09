@@ -563,12 +563,6 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
                     commentator.onPlayerMove(move, boardBeforePlayer, gameState.board)
                     audioEngine.playSound(detectMoveSound(move, boardBeforePlayer, gameState.board))
 
-                    // Dynamic difficulty: evaluate player's move quality
-                    if (dynamicManager != null) {
-                        dynamicManager.recordPlayerMove(boardBeforePlayer, session.getGameState().toFen())
-                        session.setDifficulty(dynamicManager.currentLevel)
-                    }
-
                     val moveCount = session.getGameState().moveHistory.size
                     audioEngine.setMusicPhase(GamePhaseDetector.detect(gameState.board, moveCount))
                     selectedSquare = null
@@ -580,6 +574,13 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
                     ) {
                         engineThinking = true
                         delay(500)
+
+                        // Dynamic difficulty: evaluate player's move quality while spinner is shown
+                        if (dynamicManager != null) {
+                            dynamicManager.recordPlayerMove(boardBeforePlayer, session.getGameState().toFen())
+                            session.setDifficulty(dynamicManager.currentLevel)
+                        }
+
                         val boardBeforeEngine = session.getGameState().board
                         session.makeEngineMove()
                         engineThinking = false

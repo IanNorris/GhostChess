@@ -710,7 +710,8 @@ fun renderBoard() {
     val statusText = when (status) {
         GameStatus.IN_PROGRESS -> {
             val turn = if (board.activeColor == PieceColor.WHITE) "White" else "Black"
-            "$turn to move"
+            val dm = dynamicManager
+            if (dm != null) "$turn to move (Lvl ${dm.currentLevel.level})" else "$turn to move"
         }
         GameStatus.WHITE_WINS -> "White wins! ♔"
         GameStatus.BLACK_WINS -> "Black wins! ♚"
@@ -854,19 +855,6 @@ fun executeMove(s: GameSession, move: Move) {
         // Queue sound effect to play when animation lands
         pendingMoveSound = detectMoveSound(move, boardBeforePlayer, boardAfterPlayer)
 
-        // Dynamic difficulty: evaluate player's move quality
-        val dm = dynamicManager
-        if (dm != null) {
-            dm.recordPlayerMove(boardBeforePlayer, s.getGameState().toFen())
-            s.setDifficulty(dm.currentLevel)
-            // Update status to show current dynamic level
-            val statusEl = document.getElementById("game-status")
-            if (statusEl != null) {
-                val turn = if (s.getGameState().board.activeColor == PieceColor.WHITE) "White" else "Black"
-                statusEl.textContent = "$turn to move (Lvl ${dm.currentLevel.level})"
-            }
-        }
-
         // Update music phase
         val moveCount = s.getGameState().moveHistory.size
         val phase = GamePhaseDetector.detect(boardAfterPlayer, moveCount)
@@ -887,6 +875,14 @@ fun executeMove(s: GameSession, move: Move) {
             val playerAnimWait = if (animatingMove != null) 700L else 0L
             delay(300 + playerAnimWait)
             showThinkingOverlay()
+
+            // Dynamic difficulty: evaluate player's move quality while "thinking" overlay is shown
+            val dm = dynamicManager
+            if (dm != null) {
+                dm.recordPlayerMove(boardBeforePlayer, s.getGameState().toFen())
+                s.setDifficulty(dm.currentLevel)
+            }
+
             val boardBeforeEngine = s.getGameState().board
             s.makeEngineMove()
             hideThinkingOverlay()
