@@ -37,19 +37,16 @@ class DynamicDifficultyManager(
      */
     suspend fun recordPlayerMove(boardBeforeMove: Board, playerMoveFen: String) {
         lastMoveWasUndone = false
-        val depth = 3 // quick eval for comparison
+        val depth = 1 // depth 1 is nearly instant, sufficient for quality estimation
         try {
             val bestAnalysis = withContext(Dispatchers.Default) {
                 engine.getBestLine(boardBeforeMove.toFen(), depth)
             }
             val bestEval = bestAnalysis.evaluation
 
-            // Evaluate the position after the player's actual move
             val playerAnalysis = withContext(Dispatchers.Default) {
                 engine.getBestLine(playerMoveFen, depth)
             }
-            // Note: eval is from the perspective of the side to move AFTER the player's move,
-            // so we negate it to get the eval from the player's perspective
             val playerEval = -playerAnalysis.evaluation
 
             // Quality: how close was the player's move to the best?
