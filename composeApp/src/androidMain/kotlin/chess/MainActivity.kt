@@ -18,6 +18,7 @@ class AndroidSpeechEngine(private val activity: ComponentActivity) : SpeechEngin
     override var enabled: Boolean = false
     private var tts: TextToSpeech? = null
     private var ready = false
+    private var selectedVoiceName: String? = null
 
     init {
         tts = TextToSpeech(activity) { status ->
@@ -35,6 +36,24 @@ class AndroidSpeechEngine(private val activity: ComponentActivity) : SpeechEngin
 
     override fun stop() {
         tts?.stop()
+    }
+
+    override fun getVoices(): List<String> {
+        if (!ready) return emptyList()
+        return tts?.voices?.map { it.name }?.sorted() ?: emptyList()
+    }
+
+    override fun getSelectedVoice(): String? = selectedVoiceName
+
+    override fun setVoice(name: String?) {
+        selectedVoiceName = name
+        if (!ready) return
+        if (name == null) {
+            tts?.language = Locale.US
+        } else {
+            val voice = tts?.voices?.find { it.name == name }
+            if (voice != null) tts?.voice = voice
+        }
     }
 
     fun shutdown() {

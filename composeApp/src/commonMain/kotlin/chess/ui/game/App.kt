@@ -920,6 +920,66 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
                         )
                     }
 
+                    // Speech commentary toggle + voice selector
+                    var speechOn by remember { mutableStateOf(speechEngine.enabled) }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.width(200.dp)
+                    ) {
+                        Text("Speech commentary", color = ChessColors.OnSurface, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                        Switch(
+                            checked = speechOn,
+                            onCheckedChange = { speechOn = it; speechEngine.enabled = it }
+                        )
+                    }
+
+                    if (speechOn) {
+                        val voices = remember { speechEngine.getVoices() }
+                        var selectedVoice by remember { mutableStateOf(speechEngine.getSelectedVoice()) }
+                        if (voices.isNotEmpty()) {
+                            var expanded by remember { mutableStateOf(false) }
+                            val displayName = selectedVoice?.let { name ->
+                                // Shorten long voice names
+                                if (name.length > 30) name.take(27) + "..." else name
+                            } ?: "Default"
+
+                            Box(modifier = Modifier.width(200.dp)) {
+                                OutlinedButton(
+                                    onClick = { expanded = true },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Text(displayName, color = ChessColors.OnSurface, fontSize = 12.sp, maxLines = 1)
+                                }
+                                DropdownMenu(
+                                    expanded = expanded,
+                                    onDismissRequest = { expanded = false },
+                                    modifier = Modifier.heightIn(max = 300.dp)
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Default") },
+                                        onClick = {
+                                            selectedVoice = null
+                                            speechEngine.setVoice(null)
+                                            expanded = false
+                                        }
+                                    )
+                                    voices.forEach { voice ->
+                                        DropdownMenuItem(
+                                            text = { Text(voice, fontSize = 12.sp) },
+                                            onClick = {
+                                                selectedVoice = voice
+                                                speechEngine.setVoice(voice)
+                                                speechEngine.speak("Voice changed")
+                                                expanded = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     Spacer(modifier = Modifier.height(4.dp))
                     Button(
                         onClick = { gamePaused = false },

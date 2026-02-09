@@ -13,6 +13,15 @@ interface SpeechEngine {
 
     /** Whether speech is currently enabled. */
     var enabled: Boolean
+
+    /** Get available voice names. Returns empty list if not supported. */
+    fun getVoices(): List<String> = emptyList()
+
+    /** Get the currently selected voice name, or null for default. */
+    fun getSelectedVoice(): String? = null
+
+    /** Set the voice by name. Pass null for default. */
+    fun setVoice(name: String?) {}
 }
 
 /**

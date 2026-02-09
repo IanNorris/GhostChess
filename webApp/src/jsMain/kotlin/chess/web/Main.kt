@@ -105,6 +105,22 @@ class BrowserSpeechEngine : SpeechEngine {
     override fun stop() {
         js("window.speechSynthesis.cancel()")
     }
+
+    override fun getVoices(): List<String> {
+        val count = js("window.speechSynthesis.getVoices().length") as Int
+        val voices = mutableListOf<String>()
+        for (i in 0 until count) {
+            val name = js("window.speechSynthesis.getVoices()[i].name") as String
+            voices.add(name)
+        }
+        return voices
+    }
+
+    override fun getSelectedVoice(): String? = selectedVoiceUri
+
+    override fun setVoice(name: String?) {
+        selectedVoiceUri = name
+    }
 }
 
 fun showBanter(text: String) {
