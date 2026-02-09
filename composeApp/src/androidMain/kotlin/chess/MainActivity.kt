@@ -113,6 +113,11 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onStop() {
+        audioEngine?.stopAll()
+        super.onStop()
+    }
+
     override fun onDestroy() {
         speechEngine?.shutdown()
         audioEngine?.release()
