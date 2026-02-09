@@ -80,16 +80,26 @@ var lastTimerTick = 0.0
 // Speech
 class BrowserSpeechEngine : SpeechEngine {
     override var enabled: Boolean = false
+    var selectedVoiceUri: String? = null
 
     override fun speak(text: String) {
         if (!enabled) return
         stop()
         lastBanterText = text
         updateBanterDisplay()
-        val utterance = js("new SpeechSynthesisUtterance(text)")
-        utterance.rate = 1.0
-        utterance.pitch = 1.0
-        js("window.speechSynthesis.speak(utterance)")
+        val voiceUri = selectedVoiceUri
+        js("""
+            var u = new SpeechSynthesisUtterance(text);
+            u.rate = 1.0;
+            u.pitch = 1.0;
+            if (voiceUri) {
+                var voices = window.speechSynthesis.getVoices();
+                for (var i = 0; i < voices.length; i++) {
+                    if (voices[i].voiceURI === voiceUri) { u.voice = voices[i]; break; }
+                }
+            }
+            window.speechSynthesis.speak(u);
+        """)
     }
 
     override fun stop() {
@@ -129,6 +139,7 @@ fun saveSettings() {
     window.localStorage.setItem("ghostchess_thinking", showThinking.toString())
     window.localStorage.setItem("ghostchess_difficulty", difficulty.name)
     window.localStorage.setItem("ghostchess_speech", speechEngine.enabled.toString())
+    speechEngine.selectedVoiceUri?.let { window.localStorage.setItem("ghostchess_voice", it) }
     window.localStorage.setItem("ghostchess_threats", showThreats.toString())
     window.localStorage.setItem("ghostchess_dynamic", dynamicDifficulty.toString())
     window.localStorage.setItem("ghostchess_sfx", audioEngine.sfxEnabled.toString())
@@ -153,6 +164,9 @@ fun loadSettings() {
     }
     window.localStorage.getItem("ghostchess_speech")?.let {
         speechEngine.enabled = it == "true"
+    }
+    window.localStorage.getItem("ghostchess_voice")?.let {
+        speechEngine.selectedVoiceUri = it
     }
     window.localStorage.getItem("ghostchess_threats")?.let {
         showThreats = it == "true"
@@ -267,7 +281,52 @@ fun setupMenu() {
 
     // Speech toggle
     val speechToggle = document.getElementById("speech-toggle") as HTMLInputElement
-    speechToggle.onchange = { speechEngine.enabled = speechToggle.checked; saveSettings(); null }
+    val voiceOptions = document.getElementById("voice-options") as HTMLElement
+    val voiceSelect = document.getElementById("voice-select") as HTMLSelectElement
+
+    fun populateVoices() {
+        voiceSelect.innerHTML = "<option value=\"\">Default</option>"
+        val count = js("window.speechSynthesis.getVoices().length") as Int
+        for (i in 0 until count) {
+            val name = js("window.speechSynthesis.getVoices()[i].name") as String
+            val lang = js("window.speechSynthesis.getVoices()[i].lang") as String
+            val uri = js("window.speechSynthesis.getVoices()[i].voiceURI") as String
+            val option = document.createElement("option") as HTMLOptionElement
+            option.value = uri
+            option.textContent = "$name ($lang)"
+            if (uri == speechEngine.selectedVoiceUri) option.selected = true
+            voiceSelect.appendChild(option)
+        }
+    }
+
+    // Voices may load async — listen for voiceschanged event
+    js("window.speechSynthesis.onvoiceschanged = function() {}")
+    js("window._ghostchessPopulateVoices = null")
+    window.asDynamic()._ghostchessPopulateVoices = { populateVoices() }
+    js("window.speechSynthesis.onvoiceschanged = function() { window._ghostchessPopulateVoices(); }")
+    populateVoices()
+
+    fun updateVoiceVisibility() {
+        voiceOptions.style.display = if (speechToggle.checked) "block" else "none"
+    }
+
+    speechToggle.onchange = {
+        speechEngine.enabled = speechToggle.checked
+        updateVoiceVisibility()
+        saveSettings()
+        null
+    }
+
+    voiceSelect.onchange = {
+        val uri = voiceSelect.value
+        speechEngine.selectedVoiceUri = uri.ifEmpty { null }
+        saveSettings()
+        // Preview the selected voice
+        speechEngine.speak("Ghost Chess ready")
+        null
+    }
+
+    updateVoiceVisibility()
 
     // Threats toggle
     val threatsToggle = document.getElementById("threats-toggle") as HTMLInputElement
@@ -295,6 +354,7 @@ fun setupMenu() {
     depthLabel.textContent = "Preview depth: $ghostDepth moves"
     thinkingToggle.checked = showThinking
     speechToggle.checked = speechEngine.enabled
+    updateVoiceVisibility()
     threatsToggle.checked = showThreats
     sfxToggle.checked = audioEngine.sfxEnabled
     musicToggle.checked = audioEngine.musicEnabled
