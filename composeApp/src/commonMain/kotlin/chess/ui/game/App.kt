@@ -156,23 +156,31 @@ fun MenuScreen(onStartGame: (GameConfig) -> Unit, speechEngine: SpeechEngine = N
         // Game mode selector — above the two columns
         Text("Game Mode", color = ChessColors.OnSurface, fontSize = 16.sp)
         Spacer(modifier = Modifier.height(8.dp))
+        val chipColors = FilterChipDefaults.filterChipColors(
+            labelColor = ChessColors.OnSurface,
+            selectedLabelColor = ChessColors.OnSurface,
+            selectedContainerColor = ChessColors.Primary
+        )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilterChip(
                 selected = selectedMode == GameMode.HUMAN_VS_ENGINE,
                 onClick = { selectedMode = GameMode.HUMAN_VS_ENGINE; saveSettings() },
                 label = { Text("🤖 vs Computer") },
+                colors = chipColors,
                 modifier = Modifier.testTag("mode-vs-engine")
             )
             FilterChip(
                 selected = selectedMode == GameMode.HUMAN_VS_HUMAN,
                 onClick = { selectedMode = GameMode.HUMAN_VS_HUMAN; saveSettings() },
                 label = { Text("👤 vs Human") },
+                colors = chipColors,
                 modifier = Modifier.testTag("mode-vs-human")
             )
             FilterChip(
                 selected = selectedMode == GameMode.COMPUTER_VS_COMPUTER,
                 onClick = { selectedMode = GameMode.COMPUTER_VS_COMPUTER; saveSettings() },
                 label = { Text("🤖🤖") },
+                colors = chipColors,
                 modifier = Modifier.testTag("mode-cvc")
             )
         }
@@ -198,12 +206,14 @@ fun MenuScreen(onStartGame: (GameConfig) -> Unit, speechEngine: SpeechEngine = N
                             selected = playerColor == PieceColor.WHITE,
                             onClick = { playerColor = PieceColor.WHITE; saveSettings() },
                             label = { Text("White ♔") },
+                            colors = chipColors,
                             modifier = Modifier.testTag("color-white")
                         )
                         FilterChip(
                             selected = playerColor == PieceColor.BLACK,
                             onClick = { playerColor = PieceColor.BLACK; saveSettings() },
                             label = { Text("Black ♚") },
+                            colors = chipColors,
                             modifier = Modifier.testTag("color-black")
                         )
                     }
