@@ -19,14 +19,45 @@ class AndroidSpeechEngine(private val activity: ComponentActivity) : SpeechEngin
     private var tts: TextToSpeech? = null
     private var ready = false
     private var selectedVoiceName: String? = null
+    private var voiceMap: Map<String, android.speech.tts.Voice> = emptyMap()
 
     init {
         tts = TextToSpeech(activity) { status ->
             if (status == TextToSpeech.SUCCESS) {
-                tts?.language = Locale.US
+                tts?.language = Locale.getDefault()
                 ready = true
+                buildVoiceMap()
             }
         }
+    }
+
+    private fun buildVoiceMap() {
+        val deviceLocale = Locale.getDefault()
+        val localVoices = tts?.voices?.filter { voice ->
+            !voice.isNetworkConnectionRequired &&
+            voice.locale.language == deviceLocale.language
+        } ?: emptyList()
+
+        voiceMap = localVoices.associate { voice ->
+            friendlyName(voice) to voice
+        }
+    }
+
+    private fun friendlyName(voice: android.speech.tts.Voice): String {
+        val locale = voice.locale
+        val country = locale.displayCountry.ifEmpty { locale.country }
+        val quality = when {
+            voice.quality >= android.speech.tts.Voice.QUALITY_VERY_HIGH -> "Very High"
+            voice.quality >= android.speech.tts.Voice.QUALITY_HIGH -> "High"
+            voice.quality >= android.speech.tts.Voice.QUALITY_NORMAL -> "Normal"
+            else -> "Low"
+        }
+        // Extract a short label from the voice name (last segment is often the variant)
+        val nameParts = voice.name.split("-", "_")
+        val variant = nameParts.lastOrNull()?.takeIf { it.length > 1 && !it.startsWith("x") }
+            ?: nameParts.getOrNull(nameParts.size - 2) ?: ""
+        val label = variant.replaceFirstChar { it.uppercase() }
+        return if (country.isNotEmpty()) "$label ($country, $quality)" else "$label ($quality)"
     }
 
     override fun speak(text: String) {
@@ -40,7 +71,7 @@ class AndroidSpeechEngine(private val activity: ComponentActivity) : SpeechEngin
 
     override fun getVoices(): List<String> {
         if (!ready) return emptyList()
-        return tts?.voices?.map { it.name }?.sorted() ?: emptyList()
+        return voiceMap.keys.sorted()
     }
 
     override fun getSelectedVoice(): String? = selectedVoiceName
@@ -49,9 +80,9 @@ class AndroidSpeechEngine(private val activity: ComponentActivity) : SpeechEngin
         selectedVoiceName = name
         if (!ready) return
         if (name == null) {
-            tts?.language = Locale.US
+            tts?.language = Locale.getDefault()
         } else {
-            val voice = tts?.voices?.find { it.name == name }
+            val voice = voiceMap[name]
             if (voice != null) tts?.voice = voice
         }
     }
