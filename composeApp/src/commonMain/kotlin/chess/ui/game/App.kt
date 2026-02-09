@@ -21,6 +21,8 @@ import chess.audio.SoundEffect
 import chess.core.*
 import chess.engine.SimpleEngine
 import chess.game.Difficulty
+import chess.game.DynamicDifficultyManager
+import chess.game.EloEstimator
 import chess.game.GameConfig
 import chess.game.GameMode
 import chess.game.GameSession
@@ -69,6 +71,7 @@ fun App(speechEngine: SpeechEngine = NoOpSpeechEngine(), settingsStore: Settings
                     config = current.config,
                     speechEngine = speechEngine,
                     audioEngine = audioEngine,
+                    settingsStore = settingsStore,
                     onBack = { screen = Screen.Menu }
                 )
             }
@@ -108,6 +111,17 @@ fun MenuScreen(onStartGame: (GameConfig) -> Unit, speechEngine: SpeechEngine = N
     }
     var speechEnabled by remember { mutableStateOf(settingsStore.getString("speech") == "true") }
     var showThreats by remember { mutableStateOf(settingsStore.getString("threats") == "true") }
+    var dynamicDifficulty by remember { mutableStateOf(settingsStore.getString("dynamic") == "true") }
+    var cvcWhiteDifficulty by remember {
+        mutableStateOf(settingsStore.getString("cvc_white")?.let { Difficulty.fromName(it) } ?: Difficulty.LEVEL_6)
+    }
+    var cvcBlackDifficulty by remember {
+        mutableStateOf(settingsStore.getString("cvc_black")?.let { Difficulty.fromName(it) } ?: Difficulty.LEVEL_6)
+    }
+
+    val playerElo = remember {
+        settingsStore.getString("elo")?.toIntOrNull() ?: EloEstimator.DEFAULT_ELO
+    }
 
     fun saveSettings() {
         settingsStore.putString("mode", selectedMode.name)
@@ -117,6 +131,9 @@ fun MenuScreen(onStartGame: (GameConfig) -> Unit, speechEngine: SpeechEngine = N
         settingsStore.putString("difficulty", difficulty.name)
         settingsStore.putString("speech", speechEnabled.toString())
         settingsStore.putString("threats", showThreats.toString())
+        settingsStore.putString("dynamic", dynamicDifficulty.toString())
+        settingsStore.putString("cvc_white", cvcWhiteDifficulty.name)
+        settingsStore.putString("cvc_black", cvcBlackDifficulty.name)
     }
 
     Column(
@@ -162,6 +179,12 @@ fun MenuScreen(onStartGame: (GameConfig) -> Unit, speechEngine: SpeechEngine = N
                         label = { Text("vs Human") },
                         modifier = Modifier.testTag("mode-vs-human")
                     )
+                    FilterChip(
+                        selected = selectedMode == GameMode.COMPUTER_VS_COMPUTER,
+                        onClick = { selectedMode = GameMode.COMPUTER_VS_COMPUTER; saveSettings() },
+                        label = { Text("CvC") },
+                        modifier = Modifier.testTag("mode-cvc")
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -194,15 +217,63 @@ fun MenuScreen(onStartGame: (GameConfig) -> Unit, speechEngine: SpeechEngine = N
                         onValueChange = { difficulty = Difficulty.fromLevel(it.toInt()); saveSettings() },
                         valueRange = 1f..12f,
                         steps = 10,
+                        enabled = !dynamicDifficulty,
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("difficulty-slider")
                     )
+
+                    // Win/loss for this difficulty
+                    val wl = settingsStore.getString("wl_${difficulty.name}")?.split(":") ?: listOf("0", "0")
+                    val wins = wl.getOrNull(0)?.toIntOrNull() ?: 0
+                    val losses = wl.getOrNull(1)?.toIntOrNull() ?: 0
                     Text(
-                        text = difficulty.description(),
-                        color = ChessColors.OnSurface.copy(alpha = 0.6f),
-                        fontSize = 12.sp,
-                        modifier = Modifier.testTag("difficulty-description")
+                        text = "W: $wins  L: $losses",
+                        color = ChessColors.OnSurface.copy(alpha = 0.5f),
+                        fontSize = 12.sp
+                    )
+
+                    // Dynamic difficulty toggle
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Dynamic difficulty", color = ChessColors.OnSurface, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                        Switch(
+                            checked = dynamicDifficulty,
+                            onCheckedChange = { dynamicDifficulty = it; saveSettings() },
+                            modifier = Modifier.testTag("dynamic-toggle")
+                        )
+                    }
+
+                    // ELO display
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Your rating: $playerElo — ${EloEstimator.skillLabel(playerElo)}",
+                        color = ChessColors.Accent,
+                        fontSize = 14.sp
+                    )
+                }
+
+                // CvC difficulty sliders
+                if (selectedMode == GameMode.COMPUTER_VS_COMPUTER) {
+                    Text("White: Level ${cvcWhiteDifficulty.level} — ${cvcWhiteDifficulty.label()}", color = ChessColors.OnSurface, fontSize = 14.sp)
+                    Slider(
+                        value = cvcWhiteDifficulty.level.toFloat(),
+                        onValueChange = { cvcWhiteDifficulty = Difficulty.fromLevel(it.toInt()); saveSettings() },
+                        valueRange = 1f..12f,
+                        steps = 10,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Black: Level ${cvcBlackDifficulty.level} — ${cvcBlackDifficulty.label()}", color = ChessColors.OnSurface, fontSize = 14.sp)
+                    Slider(
+                        value = cvcBlackDifficulty.level.toFloat(),
+                        onValueChange = { cvcBlackDifficulty = Difficulty.fromLevel(it.toInt()); saveSettings() },
+                        valueRange = 1f..12f,
+                        steps = 10,
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
 
@@ -282,7 +353,10 @@ fun MenuScreen(onStartGame: (GameConfig) -> Unit, speechEngine: SpeechEngine = N
                         ghostDepth = ghostDepth,
                         showEngineThinking = showThinking,
                         difficulty = difficulty,
-                        showThreats = showThreats
+                        showThreats = showThreats,
+                        dynamicDifficulty = dynamicDifficulty,
+                        whiteDifficulty = cvcWhiteDifficulty,
+                        blackDifficulty = cvcBlackDifficulty
                     )
                 )
             },
@@ -296,7 +370,7 @@ fun MenuScreen(onStartGame: (GameConfig) -> Unit, speechEngine: SpeechEngine = N
 }
 
 @Composable
-fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine(), audioEngine: AudioEngine = NoOpAudioEngine(), onBack: () -> Unit) {
+fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine(), audioEngine: AudioEngine = NoOpAudioEngine(), settingsStore: SettingsStore = NoOpSettingsStore(), onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
     val engine = remember { SimpleEngine() }
     val session = remember { GameSession(engine, config) }
@@ -316,6 +390,12 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
     var whiteElapsedSecs by remember { mutableIntStateOf(0) }
     var blackElapsedSecs by remember { mutableIntStateOf(0) }
     var capturedState by remember { mutableStateOf(capturedTracker.getState()) }
+    var eloMessage by remember { mutableStateOf<String?>(null) }
+    val dynamicManager = remember {
+        if (config.dynamicDifficulty && config.mode == GameMode.HUMAN_VS_ENGINE) {
+            DynamicDifficultyManager(engine, config.difficulty)
+        } else null
+    }
 
     // Compute threatened squares when showThreats is enabled
     val threatSquares = remember(gameState, config.showThreats) {
@@ -366,6 +446,7 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
             val isHumanTurn = when (config.mode) {
                 GameMode.HUMAN_VS_HUMAN -> true
                 GameMode.HUMAN_VS_ENGINE -> activeColor == config.playerColor
+                GameMode.COMPUTER_VS_COMPUTER -> false
             }
             if (isHumanTurn) {
                 while (true) {
@@ -411,6 +492,37 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
             commentator.onComputerMove(engineMove, boardBefore, gameState.board)
             pendingMoveSound = SoundEffect.MOVE
         }
+
+        // Computer vs Computer: auto-play loop
+        if (config.mode == GameMode.COMPUTER_VS_COMPUTER) {
+            while (session.getGameState().status == GameStatus.IN_PROGRESS) {
+                delay(800)
+                val boardBefore = session.getGameState().board
+                session.makeEngineMove()
+                val lastMove = session.getGameState().moveHistory.last()
+
+                val cap = boardBefore[lastMove.to]
+                if (cap != null) {
+                    capturedTracker.onCapture(cap.type, boardBefore.activeColor)
+                    capturedState = capturedTracker.getState()
+                } else if (lastMove.to == boardBefore.enPassantTarget && boardBefore[lastMove.from]?.type == PieceType.PAWN) {
+                    capturedTracker.onCapture(PieceType.PAWN, boardBefore.activeColor)
+                    capturedState = capturedTracker.getState()
+                }
+
+                boardBeforeEngineMove = boardBefore
+                engineAnimMove = lastMove
+                pendingMoveSound = detectMoveSound(lastMove, boardBefore, session.getGameState().board)
+                gameState = session.getGameState()
+
+                val moveCount = session.getGameState().moveHistory.size
+                audioEngine.setMusicPhase(GamePhaseDetector.detect(gameState.board, moveCount))
+            }
+            val cvcStatus = gameState.status
+            if (cvcStatus == GameStatus.DRAW) audioEngine.playSound(SoundEffect.DRAW)
+            else audioEngine.playSound(SoundEffect.CHECKMATE)
+            audioEngine.stopAll()
+        }
     }
 
     // Auto-play ghost animation
@@ -450,6 +562,13 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
 
                     commentator.onPlayerMove(move, boardBeforePlayer, gameState.board)
                     audioEngine.playSound(detectMoveSound(move, boardBeforePlayer, gameState.board))
+
+                    // Dynamic difficulty: evaluate player's move quality
+                    if (dynamicManager != null) {
+                        dynamicManager.recordPlayerMove(boardBeforePlayer, session.getGameState().toFen())
+                        session.setDifficulty(dynamicManager.currentLevel)
+                    }
+
                     val moveCount = session.getGameState().moveHistory.size
                     audioEngine.setMusicPhase(GamePhaseDetector.detect(gameState.board, moveCount))
                     selectedSquare = null
@@ -485,7 +604,7 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
 
                     // Check for game end
                     val status = gameState.status
-                    if (status != GameStatus.IN_PROGRESS) {
+                    if (status != GameStatus.IN_PROGRESS && config.mode == GameMode.HUMAN_VS_ENGINE) {
                         val playerWon = when {
                             status == GameStatus.DRAW -> null
                             status == GameStatus.WHITE_WINS && config.playerColor == PieceColor.WHITE -> true
@@ -493,6 +612,30 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
                             status == GameStatus.WHITE_WINS || status == GameStatus.BLACK_WINS -> false
                             else -> null
                         }
+
+                        // Record win/loss
+                        if (playerWon != null) {
+                            val wlKey = "wl_${config.difficulty.name}"
+                            val wl = settingsStore.getString(wlKey)?.split(":") ?: listOf("0", "0")
+                            val w = (wl.getOrNull(0)?.toIntOrNull() ?: 0) + if (playerWon) 1 else 0
+                            val l = (wl.getOrNull(1)?.toIntOrNull() ?: 0) + if (!playerWon) 1 else 0
+                            settingsStore.putString(wlKey, "$w:$l")
+                        }
+
+                        // Update ELO
+                        val eloResult = when {
+                            status == GameStatus.DRAW -> 0.5
+                            playerWon == true -> 1.0
+                            else -> 0.0
+                        }
+                        val currentElo = settingsStore.getString("elo")?.toIntOrNull() ?: EloEstimator.DEFAULT_ELO
+                        val opponentElo = EloEstimator.engineElo(config.difficulty)
+                        val newElo = EloEstimator.calculateNewElo(currentElo, opponentElo, eloResult)
+                        settingsStore.putString("elo", newElo.toString())
+                        val eloChange = newElo - currentElo
+                        val changeStr = if (eloChange >= 0) "+$eloChange" else "$eloChange"
+                        eloMessage = "Rating: $newElo ($changeStr) — ${EloEstimator.skillLabel(newElo)}"
+
                         commentator.onGameEnd(playerWon, gameState.moveHistory.size)
                         if (gameState.status == GameStatus.DRAW) {
                             audioEngine.playSound(SoundEffect.DRAW)
@@ -573,6 +716,8 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
                     ) {
                         // Top bar (pause/undo)
                         TopBar(config, gameState, session, commentator, whiteElapsedSecs, blackElapsedSecs,
+                            dynamicLevel = dynamicManager?.currentLevel,
+                            eloMessage = eloMessage,
                             onPause = { gamePaused = true },
                             onUndo = {
                                 fun undoOneMove() {
@@ -598,6 +743,7 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
                                 ) { undoOneMove() }
                                 commentator.onMoveUndone()
                                 audioEngine.playSound(SoundEffect.UNDO)
+                                dynamicManager?.markUndone()
                                 gameState = session.getGameState()
                                 ghostState = session.getGhostState()
                                 capturedState = capturedTracker.getState()
@@ -635,6 +781,8 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
                 ) {
                     // Pause/Undo buttons at the top
                     TopBar(config, gameState, session, commentator, whiteElapsedSecs, blackElapsedSecs,
+                        dynamicLevel = dynamicManager?.currentLevel,
+                        eloMessage = eloMessage,
                         onPause = { gamePaused = true },
                         onUndo = {
                             fun undoOneMove() {
@@ -660,6 +808,7 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
                             ) { undoOneMove() }
                             commentator.onMoveUndone()
                             audioEngine.playSound(SoundEffect.UNDO)
+                            dynamicManager?.markUndone()
                             gameState = session.getGameState()
                             ghostState = session.getGhostState()
                             capturedState = capturedTracker.getState()
@@ -792,6 +941,8 @@ private fun TopBar(
     commentator: GameCommentator,
     whiteElapsedSecs: Int,
     blackElapsedSecs: Int,
+    dynamicLevel: Difficulty? = null,
+    eloMessage: String? = null,
     onPause: () -> Unit,
     onUndo: () -> Unit
 ) {
@@ -823,11 +974,12 @@ private fun TopBar(
             text = when (gameState.status) {
                 GameStatus.IN_PROGRESS -> {
                     val turn = if (gameState.board.activeColor == PieceColor.WHITE) "White" else "Black"
-                    "$turn to move"
+                    val dynSuffix = if (dynamicLevel != null) " (Lvl ${dynamicLevel.level})" else ""
+                    "$turn to move$dynSuffix"
                 }
-                GameStatus.WHITE_WINS -> "White wins! ♔"
-                GameStatus.BLACK_WINS -> "Black wins! ♚"
-                GameStatus.DRAW -> "Draw"
+                GameStatus.WHITE_WINS -> eloMessage ?: "White wins! ♔"
+                GameStatus.BLACK_WINS -> eloMessage ?: "Black wins! ♚"
+                GameStatus.DRAW -> eloMessage ?: "Draw"
             },
             color = ChessColors.OnSurface, fontSize = 14.sp, modifier = Modifier.testTag("game-status")
         )

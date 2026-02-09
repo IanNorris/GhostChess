@@ -6,10 +6,12 @@ import chess.audio.SoundEffect
 import chess.core.*
 import chess.engine.SimpleEngine
 import chess.game.Difficulty
+import chess.game.EloEstimator
 import chess.game.GameConfig
 import chess.game.GameMode
 import chess.game.GameSession
 import chess.game.GameSummaryGenerator
+import chess.game.DynamicDifficultyManager
 import chess.ghost.GhostPreviewMode
 import chess.ghost.GhostPreviewState
 import chess.ghost.GhostPreviewStatus
@@ -62,6 +64,9 @@ var ghostDepth = 5
 var showThinking = false
 var difficulty = Difficulty.LEVEL_6
 var showThreats = false
+var dynamicDifficulty = false
+var cvcWhiteDifficulty = Difficulty.LEVEL_6
+var cvcBlackDifficulty = Difficulty.LEVEL_6
 
 // Move timer
 var moveStartTime = 0.0
@@ -92,6 +97,11 @@ class BrowserSpeechEngine : SpeechEngine {
     }
 }
 
+fun showBanter(text: String) {
+    lastBanterText = text
+    updateBanterDisplay()
+}
+
 fun updateBanterDisplay() {
     val el = document.getElementById("banter-text") ?: return
     el.textContent = lastBanterText ?: ""
@@ -106,6 +116,7 @@ fun updateBanterDisplay() {
 val speechEngine = BrowserSpeechEngine()
 val audioEngine = BrowserAudioEngine()
 var commentator: GameCommentator? = null
+var dynamicManager: DynamicDifficultyManager? = null
 
 fun main() {
     window.onload = { loadSettings(); setupMenu(); null }
@@ -119,6 +130,7 @@ fun saveSettings() {
     window.localStorage.setItem("ghostchess_difficulty", difficulty.name)
     window.localStorage.setItem("ghostchess_speech", speechEngine.enabled.toString())
     window.localStorage.setItem("ghostchess_threats", showThreats.toString())
+    window.localStorage.setItem("ghostchess_dynamic", dynamicDifficulty.toString())
     window.localStorage.setItem("ghostchess_sfx", audioEngine.sfxEnabled.toString())
     window.localStorage.setItem("ghostchess_music", audioEngine.musicEnabled.toString())
 }
@@ -145,6 +157,9 @@ fun loadSettings() {
     window.localStorage.getItem("ghostchess_threats")?.let {
         showThreats = it == "true"
     }
+    window.localStorage.getItem("ghostchess_dynamic")?.let {
+        dynamicDifficulty = it == "true"
+    }
     window.localStorage.getItem("ghostchess_sfx")?.let {
         audioEngine.sfxEnabled = it == "true"
     }
@@ -160,19 +175,25 @@ fun setupMenu() {
     // Mode chips
     val modeEngine = document.getElementById("mode-vs-engine") as HTMLElement
     val modeHuman = document.getElementById("mode-vs-human") as HTMLElement
+    val modeCvc = document.getElementById("mode-cvc") as HTMLElement
     val colorOptions = document.getElementById("color-options") as HTMLElement
     val difficultyOptions = document.getElementById("difficulty-options") as HTMLElement
+    val cvcOptions = document.getElementById("cvc-options") as HTMLElement
 
     fun updateModeChips() {
         modeEngine.className = if (gameMode == GameMode.HUMAN_VS_ENGINE) "chip selected" else "chip"
         modeHuman.className = if (gameMode == GameMode.HUMAN_VS_HUMAN) "chip selected" else "chip"
+        modeCvc.className = if (gameMode == GameMode.COMPUTER_VS_COMPUTER) "chip selected" else "chip"
         colorOptions.style.display = if (gameMode == GameMode.HUMAN_VS_ENGINE) "block" else "none"
         difficultyOptions.style.display = if (gameMode == GameMode.HUMAN_VS_ENGINE) "block" else "none"
+        cvcOptions.style.display = if (gameMode == GameMode.COMPUTER_VS_COMPUTER) "block" else "none"
         updateWinLossDisplay()
+        updateEloDisplay()
     }
 
     modeEngine.onclick = { gameMode = GameMode.HUMAN_VS_ENGINE; updateModeChips(); saveSettings(); null }
     modeHuman.onclick = { gameMode = GameMode.HUMAN_VS_HUMAN; updateModeChips(); saveSettings(); null }
+    modeCvc.onclick = { gameMode = GameMode.COMPUTER_VS_COMPUTER; updateModeChips(); saveSettings(); null }
 
     // Color chips
     val colorWhite = document.getElementById("color-white") as HTMLElement
@@ -189,21 +210,44 @@ fun setupMenu() {
     // Difficulty slider
     val diffSlider = document.getElementById("difficulty-slider") as HTMLInputElement
     val diffLabel = document.getElementById("difficulty-label")!!
-    val diffDesc = document.getElementById("difficulty-description")!!
+    val dynamicToggle = document.getElementById("dynamic-toggle") as HTMLInputElement
 
     fun updateDifficultySlider() {
         diffSlider.value = difficulty.level.toString()
         diffLabel.textContent = "Difficulty: ${difficulty.label()}"
-        diffDesc.textContent = difficulty.description()
+        diffSlider.disabled = dynamicDifficulty
         updateWinLossDisplay()
     }
 
     diffSlider.oninput = {
         difficulty = Difficulty.fromLevel(diffSlider.value.toInt())
         diffLabel.textContent = "Difficulty: ${difficulty.label()}"
-        diffDesc.textContent = difficulty.description()
         updateWinLossDisplay()
         saveSettings()
+        null
+    }
+
+    dynamicToggle.onchange = {
+        dynamicDifficulty = dynamicToggle.checked
+        updateDifficultySlider()
+        saveSettings()
+        null
+    }
+
+    // CvC difficulty sliders
+    val cvcWhiteSlider = document.getElementById("cvc-white-slider") as HTMLInputElement
+    val cvcWhiteLabel = document.getElementById("cvc-white-label")!!
+    val cvcBlackSlider = document.getElementById("cvc-black-slider") as HTMLInputElement
+    val cvcBlackLabel = document.getElementById("cvc-black-label")!!
+
+    cvcWhiteSlider.oninput = {
+        cvcWhiteDifficulty = Difficulty.fromLevel(cvcWhiteSlider.value.toInt())
+        cvcWhiteLabel.textContent = "White: Level ${cvcWhiteDifficulty.level} — ${cvcWhiteDifficulty.label()}"
+        null
+    }
+    cvcBlackSlider.oninput = {
+        cvcBlackDifficulty = Difficulty.fromLevel(cvcBlackSlider.value.toInt())
+        cvcBlackLabel.textContent = "Black: Level ${cvcBlackDifficulty.level} — ${cvcBlackDifficulty.label()}"
         null
     }
 
@@ -246,6 +290,7 @@ fun setupMenu() {
     updateModeChips()
     updateColorChips()
     updateDifficultySlider()
+    dynamicToggle.checked = dynamicDifficulty
     depthSlider.value = ghostDepth.toString()
     depthLabel.textContent = "Preview depth: $ghostDepth moves"
     thinkingToggle.checked = showThinking
@@ -254,18 +299,34 @@ fun setupMenu() {
     sfxToggle.checked = audioEngine.sfxEnabled
     musicToggle.checked = audioEngine.musicEnabled
 
-    // Win/loss display
+    // Win/loss and ELO display
     updateWinLossDisplay()
+    updateEloDisplay()
 
     // Start game
     document.getElementById("start-game-btn")!!.addEventListener("click", {
-        flipped = playerColor == PieceColor.BLACK
-        val config = GameConfig(gameMode, playerColor, ghostDepth, showThinking, difficulty, showThreats)
+        flipped = if (gameMode == GameMode.COMPUTER_VS_COMPUTER) false else playerColor == PieceColor.BLACK
+        val config = GameConfig(
+            mode = gameMode,
+            playerColor = playerColor,
+            ghostDepth = ghostDepth,
+            showEngineThinking = showThinking,
+            difficulty = difficulty,
+            showThreats = showThreats,
+            dynamicDifficulty = dynamicDifficulty,
+            whiteDifficulty = cvcWhiteDifficulty,
+            blackDifficulty = cvcBlackDifficulty
+        )
         val engine = SimpleEngine()
         session = GameSession(engine, config)
         commentator = GameCommentator(speechEngine, playerColor = playerColor)
         capturedTracker.reset()
         lastBanterText = null
+
+        // Setup dynamic difficulty manager
+        dynamicManager = if (dynamicDifficulty && gameMode == GameMode.HUMAN_VS_ENGINE) {
+            DynamicDifficultyManager(engine, difficulty)
+        } else null
 
         menuScreen.asDynamic().style.display = "none"
         gameScreen.asDynamic().style.display = "block"
@@ -296,6 +357,11 @@ fun setupMenu() {
                 commentator?.onComputerMove(engineMove, boardBefore, boardAfter)
                 audioEngine.playSound(SoundEffect.MOVE)
                 resetMoveTimer()
+            }
+
+            // Computer vs Computer: start auto-play loop
+            if (gameMode == GameMode.COMPUTER_VS_COMPUTER) {
+                startCvcAutoPlay()
             }
 
             renderBoard()
@@ -381,6 +447,7 @@ fun setupMenu() {
             }
             commentator?.onMoveUndone()
             audioEngine.playSound(SoundEffect.UNDO)
+            dynamicManager?.markUndone()
             selectedSquare = null
             legalMovesForSelected = emptyList()
             resetMoveTimer()
@@ -787,6 +854,19 @@ fun executeMove(s: GameSession, move: Move) {
         // Queue sound effect to play when animation lands
         pendingMoveSound = detectMoveSound(move, boardBeforePlayer, boardAfterPlayer)
 
+        // Dynamic difficulty: evaluate player's move quality
+        val dm = dynamicManager
+        if (dm != null) {
+            dm.recordPlayerMove(boardBeforePlayer, s.getGameState().toFen())
+            s.setDifficulty(dm.currentLevel)
+            // Update status to show current dynamic level
+            val statusEl = document.getElementById("game-status")
+            if (statusEl != null) {
+                val turn = if (s.getGameState().board.activeColor == PieceColor.WHITE) "White" else "Black"
+                statusEl.textContent = "$turn to move (Lvl ${dm.currentLevel.level})"
+            }
+        }
+
         // Update music phase
         val moveCount = s.getGameState().moveHistory.size
         val phase = GamePhaseDetector.detect(boardAfterPlayer, moveCount)
@@ -1118,6 +1198,7 @@ fun startMoveTimer() {
             val shouldCount = when (s.config.mode) {
                 GameMode.HUMAN_VS_HUMAN -> true
                 GameMode.HUMAN_VS_ENGINE -> activeColor == s.config.playerColor
+                GameMode.COMPUTER_VS_COMPUTER -> false
             }
             if (shouldCount) {
                 if (activeColor == PieceColor.WHITE) whiteTimeMs += delta
@@ -1186,7 +1267,64 @@ fun updateWinLossDisplay() {
         return
     }
     val (w, l) = getWinLoss(difficulty)
-    el.textContent = "${difficulty.label()} — Wins: $w  Losses: $l"
+    el.textContent = "W: $w  L: $l"
+}
+
+// --- ELO Rating (localStorage) ---
+
+fun getPlayerElo(): Int {
+    return window.localStorage.getItem("ghostchess_elo")?.toIntOrNull() ?: EloEstimator.DEFAULT_ELO
+}
+
+fun savePlayerElo(elo: Int) {
+    window.localStorage.setItem("ghostchess_elo", elo.toString())
+}
+
+fun updateEloDisplay() {
+    val el = document.getElementById("elo-display") ?: return
+    if (gameMode != GameMode.HUMAN_VS_ENGINE) {
+        el.textContent = ""
+        return
+    }
+    val elo = getPlayerElo()
+    el.textContent = "Your rating: $elo — ${EloEstimator.skillLabel(elo)}"
+}
+
+// --- Computer vs Computer ---
+
+fun startCvcAutoPlay() {
+    autoPlayJob?.cancel()
+    autoPlayJob = scope.launch {
+        val s = session ?: return@launch
+        while (s.getGameState().status == GameStatus.IN_PROGRESS) {
+            delay(800) // pause between moves
+            val boardBefore = s.getGameState().board
+            s.makeEngineMove()
+            val boardAfter = s.getGameState().board
+            val lastMove = s.getGameState().moveHistory.last()
+
+            // Track captures
+            val cap = boardBefore[lastMove.to]
+            if (cap != null) {
+                capturedTracker.onCapture(cap.type, boardBefore.activeColor)
+            } else if (lastMove.to == boardBefore.enPassantTarget && boardBefore[lastMove.from]?.type == PieceType.PAWN) {
+                capturedTracker.onCapture(PieceType.PAWN, boardBefore.activeColor)
+            }
+
+            // Animation
+            animatingPiece = boardBefore[lastMove.from]
+            capturedPiece = boardBefore[lastMove.to]
+            animatingMove = lastMove
+            pendingMoveSound = detectMoveSound(lastMove, boardBefore, boardAfter)
+
+            val moveCount = s.getGameState().moveHistory.size
+            audioEngine.setMusicPhase(GamePhaseDetector.detect(boardAfter, moveCount))
+
+            renderBoard()
+            renderCapturedPieces()
+            checkAndRecordGameEnd()
+        }
+    }
 }
 
 /** Determine the right sound effect for a move. */
@@ -1216,16 +1354,49 @@ fun checkAndRecordGameEnd() {
     val s = session ?: return
     val status = s.getGameState().status
     if (status == GameStatus.IN_PROGRESS) return
-    if (s.config.mode != GameMode.HUMAN_VS_ENGINE) return
 
     stopMoveTimer()
+
+    // CvC games don't record results
+    if (s.config.mode == GameMode.COMPUTER_VS_COMPUTER) {
+        // Play game-end sound
+        when (status) {
+            GameStatus.DRAW -> audioEngine.playSound(SoundEffect.DRAW)
+            else -> audioEngine.playSound(SoundEffect.CHECKMATE)
+        }
+        audioEngine.stopMusic()
+        return
+    }
+
+    if (s.config.mode != GameMode.HUMAN_VS_ENGINE) return
+
     val playerWon = (status == GameStatus.WHITE_WINS && s.config.playerColor == PieceColor.WHITE) ||
             (status == GameStatus.BLACK_WINS && s.config.playerColor == PieceColor.BLACK)
+
+    // Record win/loss against the difficulty played (or starting difficulty for dynamic)
+    val recordDifficulty = if (s.config.dynamicDifficulty) s.config.difficulty else s.config.difficulty
     if (status != GameStatus.DRAW) {
-        recordResult(s.config.difficulty, playerWon)
+        recordResult(recordDifficulty, playerWon)
     }
+
+    // Update ELO
+    val eloResult = when {
+        status == GameStatus.DRAW -> 0.5
+        playerWon -> 1.0
+        else -> 0.0
+    }
+    val currentElo = getPlayerElo()
+    val opponentElo = EloEstimator.engineElo(s.config.difficulty)
+    val newElo = EloEstimator.calculateNewElo(currentElo, opponentElo, eloResult)
+    savePlayerElo(newElo)
+
     val playerWonOrNull: Boolean? = if (status == GameStatus.DRAW) null else playerWon
     commentator?.onGameEnd(playerWonOrNull, s.getGameState().moveHistory.size)
+
+    // Show ELO result in banter area
+    val eloChange = newElo - currentElo
+    val changeStr = if (eloChange >= 0) "+$eloChange" else "$eloChange"
+    showBanter("Rating: $newElo ($changeStr) — ${EloEstimator.skillLabel(newElo)}")
 
     // Play game-end sound
     when (status) {

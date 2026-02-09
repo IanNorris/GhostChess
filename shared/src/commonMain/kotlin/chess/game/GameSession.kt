@@ -10,7 +10,8 @@ import kotlin.random.Random
 
 enum class GameMode {
     HUMAN_VS_ENGINE,
-    HUMAN_VS_HUMAN
+    HUMAN_VS_HUMAN,
+    COMPUTER_VS_COMPUTER
 }
 
 enum class Difficulty(val level: Int) {
@@ -78,7 +79,10 @@ data class GameConfig(
     val ghostDepth: Int = 5,
     val showEngineThinking: Boolean = false,
     val difficulty: Difficulty = Difficulty.LEVEL_6,
-    val showThreats: Boolean = false
+    val showThreats: Boolean = false,
+    val dynamicDifficulty: Boolean = false,
+    val whiteDifficulty: Difficulty = Difficulty.LEVEL_6,
+    val blackDifficulty: Difficulty = Difficulty.LEVEL_6
 )
 
 class GameSession(
@@ -87,6 +91,10 @@ class GameSession(
 ) {
     private var gameState = GameState.new()
     private val ghostManager = GhostPreviewManager(engine, config.ghostDepth)
+
+    /** Current difficulty level — may change during dynamic difficulty games */
+    var currentDifficulty: Difficulty = config.difficulty
+        private set
 
     fun getGameState(): GameState = gameState
     fun getGhostState(): GhostPreviewState = ghostManager.getState()
@@ -110,11 +118,24 @@ class GameSession(
     }
 
     suspend fun makeEngineMove(): GameState {
-        require(config.mode == GameMode.HUMAN_VS_ENGINE) { "Engine moves only in vs engine mode" }
-        require(!isPlayerTurn()) { "It's the player's turn" }
+        require(config.mode == GameMode.HUMAN_VS_ENGINE || config.mode == GameMode.COMPUTER_VS_COMPUTER) {
+            "Engine moves only in vs engine or computer vs computer mode"
+        }
+        if (config.mode == GameMode.HUMAN_VS_ENGINE) {
+            require(!isPlayerTurn()) { "It's the player's turn" }
+        }
 
-        val searchDepth = config.difficulty.searchDepth
-        val randomChance = config.difficulty.randomMoveProbability
+        // Pick difficulty based on which side is moving
+        val activeDifficulty = when (config.mode) {
+            GameMode.COMPUTER_VS_COMPUTER -> {
+                if (gameState.board.activeColor == PieceColor.WHITE) config.whiteDifficulty
+                else config.blackDifficulty
+            }
+            else -> currentDifficulty
+        }
+
+        val searchDepth = activeDifficulty.searchDepth
+        val randomChance = activeDifficulty.randomMoveProbability
 
         // At lower difficulties, occasionally make a random legal move
         if (randomChance > 0.0 && Random.nextDouble() < randomChance) {
@@ -137,8 +158,9 @@ class GameSession(
 
     fun isPlayerTurn(): Boolean {
         return when (config.mode) {
-            GameMode.HUMAN_VS_HUMAN -> true // Always a player's turn
+            GameMode.HUMAN_VS_HUMAN -> true
             GameMode.HUMAN_VS_ENGINE -> gameState.board.activeColor == config.playerColor
+            GameMode.COMPUTER_VS_COMPUTER -> false
         }
     }
 
@@ -168,4 +190,9 @@ class GameSession(
     fun ghostSetMode(mode: chess.ghost.GhostPreviewMode) = ghostManager.setMode(mode)
 
     fun legalMoves(): List<Move> = gameState.legalMoves()
+
+    /** Update the difficulty mid-game (used by dynamic difficulty) */
+    fun setDifficulty(newDifficulty: Difficulty) {
+        currentDifficulty = newDifficulty
+    }
 }
