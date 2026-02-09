@@ -153,6 +153,31 @@ fun MenuScreen(onStartGame: (GameConfig) -> Unit, speechEngine: SpeechEngine = N
         )
         Spacer(modifier = Modifier.height(24.dp))
 
+        // Game mode selector — above the two columns
+        Text("Game Mode", color = ChessColors.OnSurface, fontSize = 16.sp)
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(
+                selected = selectedMode == GameMode.HUMAN_VS_ENGINE,
+                onClick = { selectedMode = GameMode.HUMAN_VS_ENGINE; saveSettings() },
+                label = { Text("🤖 vs Computer") },
+                modifier = Modifier.testTag("mode-vs-engine")
+            )
+            FilterChip(
+                selected = selectedMode == GameMode.HUMAN_VS_HUMAN,
+                onClick = { selectedMode = GameMode.HUMAN_VS_HUMAN; saveSettings() },
+                label = { Text("👤 vs Human") },
+                modifier = Modifier.testTag("mode-vs-human")
+            )
+            FilterChip(
+                selected = selectedMode == GameMode.COMPUTER_VS_COMPUTER,
+                onClick = { selectedMode = GameMode.COMPUTER_VS_COMPUTER; saveSettings() },
+                label = { Text("🤖🤖") },
+                modifier = Modifier.testTag("mode-cvc")
+            )
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+
         // Two-column layout
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -163,31 +188,6 @@ fun MenuScreen(onStartGame: (GameConfig) -> Unit, speechEngine: SpeechEngine = N
                 modifier = Modifier.weight(1f),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Game mode
-                Text("Game Mode", color = ChessColors.OnSurface, fontSize = 16.sp)
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(
-                        selected = selectedMode == GameMode.HUMAN_VS_ENGINE,
-                        onClick = { selectedMode = GameMode.HUMAN_VS_ENGINE; saveSettings() },
-                        label = { Text("vs Computer") },
-                        modifier = Modifier.testTag("mode-vs-engine")
-                    )
-                    FilterChip(
-                        selected = selectedMode == GameMode.HUMAN_VS_HUMAN,
-                        onClick = { selectedMode = GameMode.HUMAN_VS_HUMAN; saveSettings() },
-                        label = { Text("vs Human") },
-                        modifier = Modifier.testTag("mode-vs-human")
-                    )
-                    FilterChip(
-                        selected = selectedMode == GameMode.COMPUTER_VS_COMPUTER,
-                        onClick = { selectedMode = GameMode.COMPUTER_VS_COMPUTER; saveSettings() },
-                        label = { Text("CvC") },
-                        modifier = Modifier.testTag("mode-cvc")
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
 
                 // Player color (vs engine only)
                 if (selectedMode == GameMode.HUMAN_VS_ENGINE) {
