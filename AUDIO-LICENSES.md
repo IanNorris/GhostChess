@@ -6,7 +6,7 @@ All audio files in this project are **CC0 (public domain)** — no attribution r
 
 All sound effects were **procedurally generated** using Python (NumPy/SciPy) specifically for this project. They are original works released into the public domain.
 
-- `move.mp3` — Piece placement (soft wooden tap)
+- `move-1.mp3` through `move-7.mp3` — Real chess piece placement recordings, extracted from [Freesound #366065](https://freesound.org/people/simone_ds/sounds/366065/) by simone_ds (CC0)
 - `capture.mp3` — Piece capture (sharper impact)
 - `check.mp3` — Check alert (ascending two-note)
 - `checkmate.mp3` — Checkmate fanfare (three ascending notes)
@@ -37,7 +37,7 @@ All background music is by **RandomMind** from [OpenGameArt.org](https://opengam
 - `music-medieval-victory-theme.mp3` — [Medieval: Victory Theme](https://opengameart.org/content/medieval-victory-theme)
 - `music-medieval-defeat-theme.mp3` — [Medieval: Defeat Theme](https://opengameart.org/content/medieval-defeat-theme)
 
-All tracks re-encoded to 64kbps mono to reduce file size.
+All tracks re-encoded to 48kbps mono for mobile/web (128kbps stereo available for desktop).
 
 ## License
 
