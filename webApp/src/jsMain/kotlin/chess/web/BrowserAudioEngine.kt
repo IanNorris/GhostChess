@@ -60,8 +60,10 @@ class BrowserAudioEngine : AudioEngine {
         document.addEventListener("touchstart", unlock)
     }
 
+    private val moveSounds = (1..7).map { "audio/move-$it.mp3" }
+
     private fun sfxPath(sound: SoundEffect): String = when (sound) {
-        SoundEffect.MOVE -> "audio/move.mp3"
+        SoundEffect.MOVE -> moveSounds[0] // placeholder, not used for MOVE
         SoundEffect.CAPTURE -> "audio/capture.mp3"
         SoundEffect.CHECK -> "audio/check.mp3"
         SoundEffect.CHECKMATE -> "audio/checkmate.mp3"
@@ -75,10 +77,17 @@ class BrowserAudioEngine : AudioEngine {
     override fun playSound(sound: SoundEffect) {
         if (!sfxEnabled) return
         try {
-            val cached = sfxCache.getOrPut(sound) { Audio(sfxPath(sound)) }
-            cached.currentTime = 0.0
-            cached.volume = 0.6
-            cached.play()
+            if (sound == SoundEffect.MOVE) {
+                val path = moveSounds[(js("Math.random()") as Double * moveSounds.size).toInt().coerceIn(0, moveSounds.size - 1)]
+                val audio = Audio(path)
+                audio.volume = 0.6
+                audio.play()
+            } else {
+                val cached = sfxCache.getOrPut(sound) { Audio(sfxPath(sound)) }
+                cached.currentTime = 0.0
+                cached.volume = 0.6
+                cached.play()
+            }
         } catch (_: Exception) {}
     }
 

@@ -53,6 +53,7 @@ var animatingPiece: Piece? = null
 var capturedPiece: Piece? = null
 var animationTimeoutId: Int? = null
 var isGhostAnimating = false
+var pendingMoveSound: SoundEffect? = null
 
 // Config state
 var gameMode = GameMode.HUMAN_VS_ENGINE
@@ -577,6 +578,10 @@ fun renderBoard() {
             if (segmentIndex >= totalSegments) {
                 pieceEl.style.transform = "translate(-50%, -50%) scale(1.0)"
 
+                // Play the move sound as the piece lands
+                pendingMoveSound?.let { audioEngine.playSound(it) }
+                pendingMoveSound = null
+
                 val cap = capturedPiece
                 if (cap != null) {
                     val capEl = document.createElement("span") as HTMLElement
@@ -779,8 +784,8 @@ fun executeMove(s: GameSession, move: Move) {
 
         commentator?.onPlayerMove(move, boardBeforePlayer, boardAfterPlayer)
 
-        // Play sound effect for player move
-        audioEngine.playSound(detectMoveSound(move, boardBeforePlayer, boardAfterPlayer))
+        // Queue sound effect to play when animation lands
+        pendingMoveSound = detectMoveSound(move, boardBeforePlayer, boardAfterPlayer)
 
         // Update music phase
         val moveCount = s.getGameState().moveHistory.size
@@ -819,7 +824,7 @@ fun executeMove(s: GameSession, move: Move) {
             capturedPiece = boardBeforeEngine[engineMove.to]
             animatingMove = engineMove
             commentator?.onComputerMove(engineMove, boardBeforeEngine, boardAfterEngine)
-            audioEngine.playSound(detectMoveSound(engineMove, boardBeforeEngine, boardAfterEngine))
+            pendingMoveSound = detectMoveSound(engineMove, boardBeforeEngine, boardAfterEngine)
             val engineMoveCount = s.getGameState().moveHistory.size
             val enginePhase = GamePhaseDetector.detect(boardAfterEngine, engineMoveCount)
             audioEngine.setMusicPhase(enginePhase)

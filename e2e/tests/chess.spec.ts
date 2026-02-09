@@ -1,12 +1,12 @@
 import { test, expect } from '@playwright/test';
 
-test.describe('Chess Simulator', () => {
+test.describe('Ghost Chess', () => {
 
   test.describe('Menu Screen', () => {
     test('displays app title', async ({ page }) => {
       await page.goto('/');
       await expect(page.getByTestId('app-title')).toBeVisible({ timeout: 30000 });
-      await expect(page.getByTestId('app-title')).toContainText('Chess Simulator');
+      await expect(page.getByTestId('app-title')).toContainText('Ghost Chess');
     });
 
     test('displays game mode options', async ({ page }) => {

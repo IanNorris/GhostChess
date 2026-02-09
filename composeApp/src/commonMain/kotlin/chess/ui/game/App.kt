@@ -129,7 +129,7 @@ fun MenuScreen(onStartGame: (GameConfig) -> Unit, speechEngine: SpeechEngine = N
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            "♔ Chess Simulator",
+            "♔ Ghost Chess",
             color = ChessColors.OnSurface,
             fontSize = 28.sp,
             modifier = Modifier.testTag("app-title")
@@ -312,6 +312,7 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
     var engineThinking by remember { mutableStateOf(false) }
     var engineAnimMove by remember { mutableStateOf<Move?>(null) }
     var boardBeforeEngineMove by remember { mutableStateOf<Board?>(null) }
+    var pendingMoveSound by remember { mutableStateOf<SoundEffect?>(null) }
     var whiteElapsedSecs by remember { mutableIntStateOf(0) }
     var blackElapsedSecs by remember { mutableIntStateOf(0) }
     var capturedState by remember { mutableStateOf(capturedTracker.getState()) }
@@ -408,7 +409,7 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
                 capturedState = capturedTracker.getState()
             }
             commentator.onComputerMove(engineMove, boardBefore, gameState.board)
-            audioEngine.playSound(SoundEffect.MOVE)
+            pendingMoveSound = SoundEffect.MOVE
         }
     }
 
@@ -477,7 +478,7 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
                         }
                         capturedState = capturedTracker.getState()
                         commentator.onComputerMove(engineMove, boardBeforeEngine, gameState.board)
-                        audioEngine.playSound(detectMoveSound(engineMove, boardBeforeEngine, gameState.board))
+                        pendingMoveSound = detectMoveSound(engineMove, boardBeforeEngine, gameState.board)
                         val engineMoveCount = session.getGameState().moveHistory.size
                         audioEngine.setMusicPhase(GamePhaseDetector.detect(gameState.board, engineMoveCount))
                     }
@@ -553,6 +554,7 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
                             engineAnimMove = engineAnimMove,
                             boardBeforeEngineMove = boardBeforeEngineMove,
                             onEngineAnimDone = { engineAnimMove = null; boardBeforeEngineMove = null },
+                            onAnimLand = { pendingMoveSound?.let { audioEngine.playSound(it) }; pendingMoveSound = null },
                             onSquareClick = ::onSquareClick,
                             modifier = Modifier.fillMaxSize()
                         )
@@ -680,6 +682,7 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
                             engineAnimMove = engineAnimMove,
                             boardBeforeEngineMove = boardBeforeEngineMove,
                             onEngineAnimDone = { engineAnimMove = null; boardBeforeEngineMove = null },
+                            onAnimLand = { pendingMoveSound?.let { audioEngine.playSound(it) }; pendingMoveSound = null },
                             onSquareClick = ::onSquareClick,
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
                         )

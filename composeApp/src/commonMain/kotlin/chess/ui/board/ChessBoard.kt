@@ -59,6 +59,7 @@ fun ChessBoard(
     engineAnimMove: Move? = null,
     boardBeforeEngineMove: Board? = null,
     onEngineAnimDone: () -> Unit = {},
+    onAnimLand: () -> Unit = {},
     onSquareClick: (Square) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -270,6 +271,7 @@ fun ChessBoard(
                         )
                     )
                     animating = false
+                    onAnimLand()
                     // After landing, fade out captured piece
                     if (capturedPiece != null) {
                         fadeOutActive = true
@@ -383,6 +385,7 @@ fun ChessBoard(
                         )
                     )
                     engineAnimating = false
+                    onAnimLand()
                     if (capturedPiece != null) {
                         engineFadeOutActive = true
                         captureAlpha.animateTo(

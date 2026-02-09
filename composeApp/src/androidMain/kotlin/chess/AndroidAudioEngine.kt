@@ -60,11 +60,19 @@ class AndroidAudioEngine(private val context: Context) : AudioEngine {
     private val soundIds = mutableMapOf<SoundEffect, Int>()
     private val loadedSounds = mutableSetOf<Int>()
 
+    private val moveSoundIds = mutableListOf<Int>()
+
     init {
         soundPool.setOnLoadCompleteListener { _, sampleId, status ->
             if (status == 0) loadedSounds.add(sampleId)
         }
-        soundIds[SoundEffect.MOVE] = soundPool.load(context, R.raw.move, 1)
+        moveSoundIds.add(soundPool.load(context, R.raw.move_1, 1))
+        moveSoundIds.add(soundPool.load(context, R.raw.move_2, 1))
+        moveSoundIds.add(soundPool.load(context, R.raw.move_3, 1))
+        moveSoundIds.add(soundPool.load(context, R.raw.move_4, 1))
+        moveSoundIds.add(soundPool.load(context, R.raw.move_5, 1))
+        moveSoundIds.add(soundPool.load(context, R.raw.move_6, 1))
+        moveSoundIds.add(soundPool.load(context, R.raw.move_7, 1))
         soundIds[SoundEffect.CAPTURE] = soundPool.load(context, R.raw.capture, 1)
         soundIds[SoundEffect.CHECK] = soundPool.load(context, R.raw.check, 1)
         soundIds[SoundEffect.CHECKMATE] = soundPool.load(context, R.raw.checkmate, 1)
@@ -77,7 +85,11 @@ class AndroidAudioEngine(private val context: Context) : AudioEngine {
 
     override fun playSound(sound: SoundEffect) {
         if (!sfxEnabled) return
-        val id = soundIds[sound] ?: return
+        val id = if (sound == SoundEffect.MOVE) {
+            moveSoundIds.random()
+        } else {
+            soundIds[sound] ?: return
+        }
         if (id in loadedSounds) {
             soundPool.play(id, 0.6f, 0.6f, 1, 0, 1.0f)
         }
