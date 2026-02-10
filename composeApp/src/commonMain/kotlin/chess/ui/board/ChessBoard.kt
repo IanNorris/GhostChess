@@ -218,10 +218,11 @@ fun ChessBoard(
                             }
 
                             // Red dot on squares the opponent can attack
-                            if (square in opponentAttackSquares && displayPiece == null) {
+                            if (square in opponentAttackSquares) {
                                 Box(
                                     modifier = Modifier
                                         .size(12.dp)
+                                        .zIndex(1f)
                                         .background(
                                             ChessColors.OpponentAttackDot,
                                             shape = androidx.compose.foundation.shape.CircleShape

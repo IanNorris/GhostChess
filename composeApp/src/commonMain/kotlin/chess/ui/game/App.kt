@@ -433,9 +433,7 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
             val vulnerable = mutableSetOf<Square>()
             for ((sq, piece) in board.allPieces(opponentColor)) {
                 if (piece.type == PieceType.KING) continue
-                val attacked = MoveGenerator.isSquareAttacked(board, sq, playerColor)
-                val defended = MoveGenerator.isSquareAttacked(board, sq, opponentColor)
-                if (attacked && !defended) {
+                if (MoveGenerator.isSquareAttacked(board, sq, playerColor)) {
                     vulnerable.add(sq)
                 }
             }
