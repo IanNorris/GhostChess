@@ -451,6 +451,9 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
             for (rank in 0..7) {
                 for (file in 0..7) {
                     val sq = Square(file, rank)
+                    val occupant = board[sq]
+                    // Skip squares occupied by opponent's own pieces
+                    if (occupant != null && occupant.color == opponentColor) continue
                     if (MoveGenerator.isSquareAttacked(board, sq, opponentColor)) {
                         attacked.add(sq)
                     }
