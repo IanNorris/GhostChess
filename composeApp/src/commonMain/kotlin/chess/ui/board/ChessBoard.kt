@@ -56,6 +56,7 @@ fun ChessBoard(
     flipped: Boolean = false,
     threatSquares: Set<Square> = emptySet(),
     vulnerableSquares: Set<Square> = emptySet(),
+    defendedVulnerableSquares: Set<Square> = emptySet(),
     opponentAttackSquares: Set<Square> = emptySet(),
     engineAnimMove: Move? = null,
     boardBeforeEngineMove: Board? = null,
@@ -228,6 +229,20 @@ fun ChessBoard(
                                             shape = androidx.compose.foundation.shape.CircleShape
                                         )
                                         .testTag("attack-dot-${square.toAlgebraic()}")
+                                )
+                            }
+
+                            // Red dot on capturable opponent pieces that are defended
+                            if (square in defendedVulnerableSquares) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(12.dp)
+                                        .zIndex(1f)
+                                        .background(
+                                            ChessColors.OpponentAttackDot,
+                                            shape = androidx.compose.foundation.shape.CircleShape
+                                        )
+                                        .testTag("defended-dot-${square.toAlgebraic()}")
                                 )
                             }
 

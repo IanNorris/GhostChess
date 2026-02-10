@@ -441,6 +441,26 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
         }
     }
 
+    // Opponent pieces that are capturable but defended (green border + red dot)
+    val defendedVulnerableSquares = remember(gameState, config.showThreats) {
+        if (!config.showThreats) emptySet()
+        else {
+            val board = gameState.board
+            val playerColor = config.playerColor
+            val opponentColor = playerColor.opposite()
+            val defended = mutableSetOf<Square>()
+            for ((sq, piece) in board.allPieces(opponentColor)) {
+                if (piece.type == PieceType.KING) continue
+                // Capturable by player AND defended by opponent
+                if (MoveGenerator.isSquareAttacked(board, sq, playerColor) &&
+                    MoveGenerator.isSquareAttacked(board, sq, opponentColor)) {
+                    defended.add(sq)
+                }
+            }
+            defended
+        }
+    }
+
     // Compute all squares attacked by the opponent (danger zones)
     val opponentAttackSquares = remember(gameState, config.showThreats) {
         if (!config.showThreats) emptySet()
@@ -725,6 +745,7 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
                             flipped = config.playerColor == PieceColor.BLACK,
                             threatSquares = threatSquares,
                             vulnerableSquares = vulnerableSquares,
+                            defendedVulnerableSquares = defendedVulnerableSquares,
                             opponentAttackSquares = opponentAttackSquares,
                             engineAnimMove = engineAnimMove,
                             boardBeforeEngineMove = boardBeforeEngineMove,
@@ -860,6 +881,7 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
                             flipped = config.playerColor == PieceColor.BLACK,
                             threatSquares = threatSquares,
                             vulnerableSquares = vulnerableSquares,
+                            defendedVulnerableSquares = defendedVulnerableSquares,
                             opponentAttackSquares = opponentAttackSquares,
                             engineAnimMove = engineAnimMove,
                             boardBeforeEngineMove = boardBeforeEngineMove,
