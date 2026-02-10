@@ -112,7 +112,13 @@
         }
         .square.legal-capture { box-shadow: inset 0 0 0 3px rgba(0,180,0,0.6); }
         .square.player-threat { background: #D84315 !important; }
-        .square.opponent-vulnerable { background: #2E7D32 !important; }
+        .square.opponent-vulnerable { box-shadow: inset 0 0 0 3px #4CAF50 !important; }
+        .square.opponent-attack { position: relative; }
+        .square.opponent-attack::after {
+            content: ''; position: absolute; width: 25%; height: 25%;
+            top: 37.5%; left: 37.5%;
+            background: rgba(229,57,53,0.55); border-radius: 50%;
+        }
         .piece-white { color: #FFFFFF; -webkit-text-stroke: 1px #333333; paint-order: stroke fill; }
         .piece-black { color: #333333; -webkit-text-stroke: 1px #333333; }
         .square.ghost-highlight { background: rgba(0,170,255,0.3) !important; }

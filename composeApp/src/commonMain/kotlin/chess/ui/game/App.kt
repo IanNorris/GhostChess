@@ -443,6 +443,25 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
         }
     }
 
+    // Compute all squares attacked by the opponent (danger zones)
+    val opponentAttackSquares = remember(gameState, config.showThreats) {
+        if (!config.showThreats) emptySet()
+        else {
+            val board = gameState.board
+            val opponentColor = config.playerColor.opposite()
+            val attacked = mutableSetOf<Square>()
+            for (rank in 0..7) {
+                for (file in 0..7) {
+                    val sq = Square(file, rank)
+                    if (MoveGenerator.isSquareAttacked(board, sq, opponentColor)) {
+                        attacked.add(sq)
+                    }
+                }
+            }
+            attacked
+        }
+    }
+
     // Compute game summary when enabled
     val gameSummary = remember(gameState, config.showEngineThinking) {
         if (!config.showEngineThinking) null
@@ -705,6 +724,7 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
                             flipped = config.playerColor == PieceColor.BLACK,
                             threatSquares = threatSquares,
                             vulnerableSquares = vulnerableSquares,
+                            opponentAttackSquares = opponentAttackSquares,
                             engineAnimMove = engineAnimMove,
                             boardBeforeEngineMove = boardBeforeEngineMove,
                             onEngineAnimDone = { engineAnimMove = null; boardBeforeEngineMove = null },
@@ -839,6 +859,7 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
                             flipped = config.playerColor == PieceColor.BLACK,
                             threatSquares = threatSquares,
                             vulnerableSquares = vulnerableSquares,
+                            opponentAttackSquares = opponentAttackSquares,
                             engineAnimMove = engineAnimMove,
                             boardBeforeEngineMove = boardBeforeEngineMove,
                             onEngineAnimDone = { engineAnimMove = null; boardBeforeEngineMove = null },

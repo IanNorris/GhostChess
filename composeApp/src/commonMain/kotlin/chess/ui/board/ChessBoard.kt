@@ -56,6 +56,7 @@ fun ChessBoard(
     flipped: Boolean = false,
     threatSquares: Set<Square> = emptySet(),
     vulnerableSquares: Set<Square> = emptySet(),
+    opponentAttackSquares: Set<Square> = emptySet(),
     engineAnimMove: Move? = null,
     boardBeforeEngineMove: Board? = null,
     onEngineAnimDone: () -> Unit = {},
@@ -184,17 +185,19 @@ fun ChessBoard(
                             isCheck -> ChessColors.CheckHighlight
                             isGhostDiff -> if (isLightSquare) ChessColors.GhostMoveTo else ChessColors.GhostMoveFrom
                             square in threatSquares -> ChessColors.PlayerThreat
-                            square in vulnerableSquares -> ChessColors.OpponentVulnerable
                             isLightSquare -> ChessColors.LightSquare
                             else -> ChessColors.DarkSquare
                         }
+
+                        val isVulnerable = square in vulnerableSquares
 
                         Box(
                             modifier = Modifier
                                 .size(squareSize)
                                 .background(bgColor)
                                 .then(
-                                    if (isLegalTarget) Modifier.border(2.dp, ChessColors.LegalMoveHighlight)
+                                    if (isVulnerable) Modifier.border(3.dp, ChessColors.OpponentVulnerable)
+                                    else if (isLegalTarget) Modifier.border(2.dp, ChessColors.LegalMoveHighlight)
                                     else Modifier
                                 )
                                 .clickable { onSquareClick(square) }
@@ -214,7 +217,20 @@ fun ChessBoard(
                                 )
                             }
 
-                            if (isLegalTarget && piece == null) {
+                            // Red dot on squares the opponent can attack
+                            if (square in opponentAttackSquares && displayPiece == null) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(12.dp)
+                                        .background(
+                                            ChessColors.OpponentAttackDot,
+                                            shape = androidx.compose.foundation.shape.CircleShape
+                                        )
+                                        .testTag("attack-dot-${square.toAlgebraic()}")
+                                )
+                            }
+
+                            if (isLegalTarget && piece == null && square !in opponentAttackSquares) {
                                 Box(
                                     modifier = Modifier
                                         .size(12.dp)

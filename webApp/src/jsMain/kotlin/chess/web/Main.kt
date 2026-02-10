@@ -635,20 +635,26 @@ fun renderBoard() {
             if (square == selectedSquare) classes.add("selected")
 
             // Threat highlights
-            if (showThreats && piece != null) {
+            if (showThreats) {
                 val s = session
                 if (s != null) {
                     val pColor = board.activeColor
-                    if (piece.color == pColor && piece.type != PieceType.KING) {
-                        if (MoveGenerator.isSquareAttacked(board, square, pColor.opposite())) {
-                            classes.add("player-threat")
+                    if (piece != null) {
+                        if (piece.color == pColor && piece.type != PieceType.KING) {
+                            if (MoveGenerator.isSquareAttacked(board, square, pColor.opposite())) {
+                                classes.add("player-threat")
+                            }
+                        } else if (piece.color == pColor.opposite() && piece.type != PieceType.KING) {
+                            val attacked = MoveGenerator.isSquareAttacked(board, square, pColor)
+                            val defended = MoveGenerator.isSquareAttacked(board, square, pColor.opposite())
+                            if (attacked && !defended) {
+                                classes.add("opponent-vulnerable")
+                            }
                         }
-                    } else if (piece.color == pColor.opposite() && piece.type != PieceType.KING) {
-                        val attacked = MoveGenerator.isSquareAttacked(board, square, pColor)
-                        val defended = MoveGenerator.isSquareAttacked(board, square, pColor.opposite())
-                        if (attacked && !defended) {
-                            classes.add("opponent-vulnerable")
-                        }
+                    }
+                    // Red dot on empty squares attacked by opponent
+                    if (piece == null && MoveGenerator.isSquareAttacked(board, square, pColor.opposite())) {
+                        classes.add("opponent-attack")
                     }
                 }
             }

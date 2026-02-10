@@ -9,7 +9,8 @@ object ChessColors {
     val LegalMoveHighlight = Color(0x5500FF00)
     val CheckHighlight = Color(0x88FF0000)
     val PlayerThreat = Color(0x88FF8C00)       // Orange: player's pieces under threat
-    val OpponentVulnerable = Color(0x6690EE90)  // Light green: vulnerable opponent pieces
+    val OpponentVulnerable = Color(0xAA4CAF50)  // Green border: capturable opponent pieces
+    val OpponentAttackDot = Color(0x88E53935)   // Red dot: squares opponent can reach
     val GhostPiece = Color(0x66FFFFFF)
     val GhostMoveFrom = Color(0x4400AAFF)
     val GhostMoveTo = Color(0x6600AAFF)
