@@ -37,8 +37,10 @@ import chess.ui.ghost.GhostPreviewControls
 import chess.ui.theme.ChessColors
 import chess.game.GameSummary
 import chess.game.GameSummaryGenerator
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 interface SettingsStore {
     fun getString(key: String): String?
@@ -489,6 +491,38 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
         else GameSummaryGenerator.generate(gameState.board, config.playerColor, engine)
     }
 
+    // Compute suggested best move for the current player
+    var bestMoveFrom by remember { mutableStateOf<Square?>(null) }
+    var bestMoveTo by remember { mutableStateOf<Square?>(null) }
+    LaunchedEffect(gameState.board.toFen()) {
+        if (gameState.status != GameStatus.IN_PROGRESS) {
+            bestMoveFrom = null
+            bestMoveTo = null
+            return@LaunchedEffect
+        }
+        val isHumanTurn = when (config.mode) {
+            GameMode.HUMAN_VS_HUMAN -> true
+            GameMode.HUMAN_VS_ENGINE -> gameState.board.activeColor == config.playerColor
+            GameMode.COMPUTER_VS_COMPUTER -> false
+        }
+        if (!isHumanTurn) {
+            bestMoveFrom = null
+            bestMoveTo = null
+            return@LaunchedEffect
+        }
+        val analysis = withContext(Dispatchers.Default) {
+            engine.getBestLine(gameState.board.toFen(), 2, 1)
+        }
+        if (analysis.bestLine.isNotEmpty()) {
+            val best = analysis.bestLine.first()
+            bestMoveFrom = best.from
+            bestMoveTo = best.to
+        } else {
+            bestMoveFrom = null
+            bestMoveTo = null
+        }
+    }
+
     // Move timer — only counts during current player's turn (human only)
     LaunchedEffect(gamePaused, gameState.status, gameState.board.activeColor) {
         if (!gamePaused && gameState.status == GameStatus.IN_PROGRESS && initialized) {
@@ -747,6 +781,8 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
                             vulnerableSquares = vulnerableSquares,
                             defendedVulnerableSquares = defendedVulnerableSquares,
                             opponentAttackSquares = opponentAttackSquares,
+                            bestMoveFrom = bestMoveFrom,
+                            bestMoveTo = bestMoveTo,
                             engineAnimMove = engineAnimMove,
                             boardBeforeEngineMove = boardBeforeEngineMove,
                             onEngineAnimDone = { engineAnimMove = null; boardBeforeEngineMove = null },
@@ -883,6 +919,8 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
                             vulnerableSquares = vulnerableSquares,
                             defendedVulnerableSquares = defendedVulnerableSquares,
                             opponentAttackSquares = opponentAttackSquares,
+                            bestMoveFrom = bestMoveFrom,
+                            bestMoveTo = bestMoveTo,
                             engineAnimMove = engineAnimMove,
                             boardBeforeEngineMove = boardBeforeEngineMove,
                             onEngineAnimDone = { engineAnimMove = null; boardBeforeEngineMove = null },

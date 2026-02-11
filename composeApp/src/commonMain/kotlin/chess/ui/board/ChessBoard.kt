@@ -58,6 +58,8 @@ fun ChessBoard(
     vulnerableSquares: Set<Square> = emptySet(),
     defendedVulnerableSquares: Set<Square> = emptySet(),
     opponentAttackSquares: Set<Square> = emptySet(),
+    bestMoveFrom: Square? = null,
+    bestMoveTo: Square? = null,
     engineAnimMove: Move? = null,
     boardBeforeEngineMove: Board? = null,
     onEngineAnimDone: () -> Unit = {},
@@ -181,6 +183,9 @@ fun ChessBoard(
                             else -> piece
                         }
 
+                        val isBestMoveSquare = !ghostActive && selectedSquare == null &&
+                            (square == bestMoveFrom || square == bestMoveTo)
+
                         val bgColor = when {
                             isSelected -> ChessColors.SelectedSquare
                             isCheck -> ChessColors.CheckHighlight
@@ -196,6 +201,10 @@ fun ChessBoard(
                             modifier = Modifier
                                 .size(squareSize)
                                 .background(bgColor)
+                                .then(
+                                    if (isBestMoveSquare) Modifier.background(ChessColors.BestMoveHint)
+                                    else Modifier
+                                )
                                 .then(
                                     if (isVulnerable) Modifier.border(3.dp, ChessColors.OpponentVulnerable)
                                     else if (isLegalTarget) Modifier.border(2.dp, ChessColors.LegalMoveHighlight)
@@ -216,6 +225,20 @@ fun ChessBoard(
                                         else "piece-${square.toAlgebraic()}"
                                     )
                                 )
+                            }
+
+                            // Best move hint: faint blue piece at destination
+                            if (isBestMoveSquare && square == bestMoveTo && bestMoveFrom != null) {
+                                val hintPiece = board[bestMoveFrom]
+                                if (hintPiece != null) {
+                                    Text(
+                                        text = PieceUnicode.get(hintPiece.type, hintPiece.color),
+                                        fontSize = PIECE_FONT_SIZE.sp,
+                                        textAlign = TextAlign.Center,
+                                        color = ChessColors.BestMovePiece,
+                                        modifier = Modifier.testTag("best-move-hint-${square.toAlgebraic()}")
+                                    )
+                                }
                             }
 
                             // Red dot on squares the opponent can attack

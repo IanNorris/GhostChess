@@ -20,4 +20,6 @@ object ChessColors {
     val Primary = Color(0xFF6BAF6B)
     val Accent = Color(0xFFFFB74D)
     val Error = Color(0xFFEF5350)
+    val BestMoveHint = Color(0x442196F3)       // Faint blue: suggested best move
+    val BestMovePiece = Color(0x552196F3)       // Faint blue piece for best move hint
 }
