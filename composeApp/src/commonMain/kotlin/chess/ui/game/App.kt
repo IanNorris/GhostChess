@@ -113,6 +113,7 @@ fun MenuScreen(onStartGame: (GameConfig) -> Unit, speechEngine: SpeechEngine = N
     }
     var speechEnabled by remember { mutableStateOf(settingsStore.getString("speech") == "true") }
     var showThreats by remember { mutableStateOf(settingsStore.getString("threats") == "true") }
+    var showOpportunities by remember { mutableStateOf(settingsStore.getString("opportunities") == "true") }
     var dynamicDifficulty by remember { mutableStateOf(settingsStore.getString("dynamic") == "true") }
     var cvcWhiteDifficulty by remember {
         mutableStateOf(settingsStore.getString("cvc_white")?.let { Difficulty.fromName(it) } ?: Difficulty.LEVEL_6)
@@ -133,6 +134,7 @@ fun MenuScreen(onStartGame: (GameConfig) -> Unit, speechEngine: SpeechEngine = N
         settingsStore.putString("difficulty", difficulty.name)
         settingsStore.putString("speech", speechEnabled.toString())
         settingsStore.putString("threats", showThreats.toString())
+        settingsStore.putString("opportunities", showOpportunities.toString())
         settingsStore.putString("dynamic", dynamicDifficulty.toString())
         settingsStore.putString("cvc_white", cvcWhiteDifficulty.name)
         settingsStore.putString("cvc_black", cvcBlackDifficulty.name)
@@ -292,12 +294,15 @@ fun MenuScreen(onStartGame: (GameConfig) -> Unit, speechEngine: SpeechEngine = N
                 Spacer(modifier = Modifier.height(16.dp))
 
                 // Ghost depth
-                Text("Preview depth: $ghostDepth moves", color = ChessColors.OnSurface, fontSize = 14.sp)
+                Text(
+                    if (ghostDepth == 0) "Preview depth: off" else "Preview depth: $ghostDepth moves",
+                    color = ChessColors.OnSurface, fontSize = 14.sp
+                )
                 Slider(
                     value = ghostDepth.toFloat(),
                     onValueChange = { ghostDepth = it.toInt(); saveSettings() },
-                    valueRange = 1f..10f,
-                    steps = 8,
+                    valueRange = 0f..10f,
+                    steps = 9,
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("depth-slider")
@@ -350,6 +355,19 @@ fun MenuScreen(onStartGame: (GameConfig) -> Unit, speechEngine: SpeechEngine = N
                         modifier = Modifier.testTag("threats-toggle")
                     )
                 }
+
+                // Show opportunities toggle
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth().testTag("opportunities-toggle-row")
+                ) {
+                    Text("Show opportunities", color = ChessColors.OnSurface, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                    Switch(
+                        checked = showOpportunities,
+                        onCheckedChange = { showOpportunities = it; saveSettings() },
+                        modifier = Modifier.testTag("opportunities-toggle")
+                    )
+                }
             }
         }
 
@@ -366,6 +384,7 @@ fun MenuScreen(onStartGame: (GameConfig) -> Unit, speechEngine: SpeechEngine = N
                         showEngineThinking = showThinking,
                         difficulty = difficulty,
                         showThreats = showThreats,
+                        showOpportunities = showOpportunities,
                         dynamicDifficulty = dynamicDifficulty,
                         whiteDifficulty = cvcWhiteDifficulty,
                         blackDifficulty = cvcBlackDifficulty
@@ -426,8 +445,8 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
             threatened
         }
     }
-    val vulnerableSquares = remember(gameState, config.showThreats) {
-        if (!config.showThreats) emptySet()
+    val vulnerableSquares = remember(gameState, config.showOpportunities) {
+        if (!config.showOpportunities) emptySet()
         else {
             val board = gameState.board
             val playerColor = config.playerColor
@@ -444,8 +463,8 @@ fun GameScreen(config: GameConfig, speechEngine: SpeechEngine = NoOpSpeechEngine
     }
 
     // Opponent pieces that are capturable but defended (green border + red dot)
-    val defendedVulnerableSquares = remember(gameState, config.showThreats) {
-        if (!config.showThreats) emptySet()
+    val defendedVulnerableSquares = remember(gameState, config.showOpportunities) {
+        if (!config.showOpportunities) emptySet()
         else {
             val board = gameState.board
             val playerColor = config.playerColor

@@ -52,6 +52,10 @@ class GhostPreviewManager(
     fun getState(): GhostPreviewState = state
 
     suspend fun requestPreview(board: Board, showThinking: Boolean = false): GhostPreviewState {
+        if (lineLength <= 0) {
+            state = GhostPreviewState()
+            return state
+        }
         state = state.copy(
             status = GhostPreviewStatus.LOADING,
             originalBoard = board,

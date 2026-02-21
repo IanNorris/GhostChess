@@ -80,6 +80,7 @@ data class GameConfig(
     val showEngineThinking: Boolean = false,
     val difficulty: Difficulty = Difficulty.LEVEL_6,
     val showThreats: Boolean = false,
+    val showOpportunities: Boolean = false,
     val dynamicDifficulty: Boolean = false,
     val whiteDifficulty: Difficulty = Difficulty.LEVEL_6,
     val blackDifficulty: Difficulty = Difficulty.LEVEL_6

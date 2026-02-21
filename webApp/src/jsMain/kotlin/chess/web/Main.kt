@@ -64,6 +64,7 @@ var ghostDepth = 5
 var showThinking = false
 var difficulty = Difficulty.LEVEL_6
 var showThreats = false
+var showOpportunities = false
 var dynamicDifficulty = false
 var cvcWhiteDifficulty = Difficulty.LEVEL_6
 var cvcBlackDifficulty = Difficulty.LEVEL_6
@@ -157,6 +158,7 @@ fun saveSettings() {
     window.localStorage.setItem("ghostchess_speech", speechEngine.enabled.toString())
     speechEngine.selectedVoiceUri?.let { window.localStorage.setItem("ghostchess_voice", it) }
     window.localStorage.setItem("ghostchess_threats", showThreats.toString())
+    window.localStorage.setItem("ghostchess_opportunities", showOpportunities.toString())
     window.localStorage.setItem("ghostchess_dynamic", dynamicDifficulty.toString())
     window.localStorage.setItem("ghostchess_sfx", audioEngine.sfxEnabled.toString())
     window.localStorage.setItem("ghostchess_music", audioEngine.musicEnabled.toString())
@@ -186,6 +188,9 @@ fun loadSettings() {
     }
     window.localStorage.getItem("ghostchess_threats")?.let {
         showThreats = it == "true"
+    }
+    window.localStorage.getItem("ghostchess_opportunities")?.let {
+        showOpportunities = it == "true"
     }
     window.localStorage.getItem("ghostchess_dynamic")?.let {
         dynamicDifficulty = it == "true"
@@ -286,7 +291,7 @@ fun setupMenu() {
     val depthLabel = document.getElementById("depth-label")!!
     depthSlider.oninput = {
         ghostDepth = depthSlider.value.toInt()
-        depthLabel.textContent = "Preview depth: $ghostDepth moves"
+        depthLabel.textContent = if (ghostDepth == 0) "Preview depth: off" else "Preview depth: $ghostDepth moves"
         saveSettings()
         null
     }
@@ -347,6 +352,10 @@ fun setupMenu() {
     // Threats toggle
     val threatsToggle = document.getElementById("threats-toggle") as HTMLInputElement
     threatsToggle.onchange = { showThreats = threatsToggle.checked; saveSettings(); renderBoard(); null }
+
+    // Opportunities toggle
+    val opportunitiesToggle = document.getElementById("opportunities-toggle") as HTMLInputElement
+    opportunitiesToggle.onchange = { showOpportunities = opportunitiesToggle.checked; saveSettings(); renderBoard(); null }
 
     // Sound effects toggle (in pause menu)
     val sfxToggle = document.getElementById("sfx-toggle") as HTMLInputElement
@@ -409,11 +418,12 @@ fun setupMenu() {
     updateDifficultySlider()
     dynamicToggle.checked = dynamicDifficulty
     depthSlider.value = ghostDepth.toString()
-    depthLabel.textContent = "Preview depth: $ghostDepth moves"
+    depthLabel.textContent = if (ghostDepth == 0) "Preview depth: off" else "Preview depth: $ghostDepth moves"
     thinkingToggle.checked = showThinking
     speechToggle.checked = speechEngine.enabled
     updateVoiceVisibility()
     threatsToggle.checked = showThreats
+    opportunitiesToggle.checked = showOpportunities
     sfxToggle.checked = audioEngine.sfxEnabled
     musicToggle.checked = audioEngine.musicEnabled
 
@@ -431,6 +441,7 @@ fun setupMenu() {
             showEngineThinking = showThinking,
             difficulty = difficulty,
             showThreats = showThreats,
+            showOpportunities = showOpportunities,
             dynamicDifficulty = dynamicDifficulty,
             whiteDifficulty = cvcWhiteDifficulty,
             blackDifficulty = cvcBlackDifficulty
@@ -635,16 +646,16 @@ fun renderBoard() {
             if (square == selectedSquare) classes.add("selected")
 
             // Threat highlights
-            if (showThreats) {
+            if (showThreats || showOpportunities) {
                 val s = session
                 if (s != null) {
                     val pColor = board.activeColor
                     if (piece != null) {
-                        if (piece.color == pColor && piece.type != PieceType.KING) {
+                        if (showThreats && piece.color == pColor && piece.type != PieceType.KING) {
                             if (MoveGenerator.isSquareAttacked(board, square, pColor.opposite())) {
                                 classes.add("player-threat")
                             }
-                        } else if (piece.color == pColor.opposite() && piece.type != PieceType.KING) {
+                        } else if (showOpportunities && piece.color == pColor.opposite() && piece.type != PieceType.KING) {
                             val attacked = MoveGenerator.isSquareAttacked(board, square, pColor)
                             val defended = MoveGenerator.isSquareAttacked(board, square, pColor.opposite())
                             if (attacked && !defended) {
@@ -653,7 +664,7 @@ fun renderBoard() {
                         }
                     }
                     // Red dot on empty squares attacked by opponent
-                    if (piece == null && MoveGenerator.isSquareAttacked(board, square, pColor.opposite())) {
+                    if (showThreats && piece == null && MoveGenerator.isSquareAttacked(board, square, pColor.opposite())) {
                         classes.add("opponent-attack")
                     }
                 }
